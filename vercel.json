@@ -9,12 +9,5 @@
       "maxDuration": 10
     }
   },
-  "crons": [],
-  "regions": ["iad1"],
-  "env": {
-    "NEXTAUTH_URL": {
-      "description": "رابط التطبيق على Vercel - سيتم تعيينه تلقائياً",
-      "value": "https://your-project-name.vercel.app"
-    }
-  }
+  "regions": ["iad1"]
 }

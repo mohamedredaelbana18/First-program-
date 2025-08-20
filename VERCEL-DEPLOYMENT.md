@@ -28,21 +28,20 @@ git push origin main
 3. `DATABASE_URL` سيتم إنشاؤها تلقائياً
 
 #### 4. ⚙️ إعداد متغيرات البيئة
-في Settings → Environment Variables:
 
-```env
-# مطلوب
-NEXTAUTH_SECRET=ضع_قيمة_آمنة_32_حرف
-NEXTAUTH_URL=https://your-project.vercel.app
+**مهم**: أضف هذه المتغيرات في **Vercel Dashboard** → **Settings** → **Environment Variables**
 
-# اختياري - GitHub OAuth
-GITHUB_ID=your_github_client_id
-GITHUB_SECRET=your_github_client_secret
+**المتغيرات المطلوبة:**
+- `NEXTAUTH_SECRET` = قيمة آمنة 32+ حرف (استخدم `npm run generate-secret`)
+- `NEXTAUTH_URL` = `https://your-project-name.vercel.app`
 
-# اختياري - Google OAuth  
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-```
+**متغيرات OAuth (اختيارية):**
+- `GITHUB_ID` = GitHub Client ID
+- `GITHUB_SECRET` = GitHub Client Secret  
+- `GOOGLE_CLIENT_ID` = Google Client ID
+- `GOOGLE_CLIENT_SECRET` = Google Client Secret
+
+**ملاحظة**: `DATABASE_URL` سيتم إنشاؤها تلقائياً عند إضافة Vercel Postgres
 
 #### 5. 🔐 إنشاء NEXTAUTH_SECRET
 ```bash
