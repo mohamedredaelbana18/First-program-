@@ -1,215 +1,258 @@
 'use client'
 
-import { useSession } from 'next-auth/react'
-import { Navbar } from '@/components/navbar'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { 
-  FileText, 
-  CheckSquare, 
+  Building2, 
   Users, 
+  FileText, 
   TrendingUp, 
   Calendar,
-  Star,
-  MessageCircle,
-  Heart,
-  Plus
+  DollarSign,
+  Home,
+  Plus,
+  BarChart3,
+  Wallet
 } from 'lucide-react'
 
-export default function HomePage() {
-  const { data: session, status } = useSession()
-
-  if (status === 'loading') {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-          <p className="mt-2 text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (!session) {
-    return (
-      <div className="min-h-screen">
-        <Navbar />
-        <div className="container mx-auto px-4 py-16">
-          <div className="mx-auto max-w-4xl text-center">
-            <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
-              Welcome to First Program Enhanced
-            </h1>
-            <p className="mt-6 text-lg leading-8 text-muted-foreground">
-              A comprehensive full-stack application with robust database support. 
-              Manage your posts, tasks, and connect with others in one powerful platform.
-            </p>
-            <div className="mt-10 flex items-center justify-center gap-x-6">
-              <Button asChild size="lg">
-                <Link href="/auth/signup">Get Started</Link>
-              </Button>
-              <Button variant="outline" size="lg" asChild>
-                <Link href="/auth/signin">Sign In</Link>
-              </Button>
-            </div>
-          </div>
-
-          <div className="mx-auto mt-16 max-w-6xl">
-            <h2 className="text-center text-3xl font-bold tracking-tight">
-              Powerful Features
-            </h2>
-            <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-              <Card>
-                <CardHeader>
-                  <FileText className="h-8 w-8 text-primary" />
-                  <CardTitle>Content Management</CardTitle>
-                  <CardDescription>
-                    Create, edit, and manage your posts with rich content support
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CheckSquare className="h-8 w-8 text-primary" />
-                  <CardTitle>Task Management</CardTitle>
-                  <CardDescription>
-                    Organize your tasks with projects, categories, and priorities
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <Users className="h-8 w-8 text-primary" />
-                  <CardTitle>Social Features</CardTitle>
-                  <CardDescription>
-                    Connect with others, follow users, and engage with content
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
+export default function RealEstateDashboard() {
   return (
-    <div className="min-h-screen">
-      <Navbar />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800" dir="rtl">
+      {/* Header */}
+      <div className="bg-white dark:bg-gray-800 shadow-sm border-b">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="text-3xl">🏛️</div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  مدير الاستثمار العقاري
+                </h1>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  النسخة النهائية - قاعدة بيانات قوية
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm">
+                🔒 قفل
+              </Button>
+              <Button variant="outline" size="sm">
+                ⚙️ الإعدادات
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight">
-            Welcome back, {session.user?.name || session.user?.email}!
-          </h1>
-          <p className="text-muted-foreground">
-            Here's what's happening with your account today.
-          </p>
-        </div>
-
         {/* Quick Stats */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
-          <Card>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
+          <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Posts</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">إجمالي الوحدات</CardTitle>
+              <Building2 className="h-4 w-4" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground">
-                <TrendingUp className="inline h-3 w-3" /> +0% from last month
+              <p className="text-xs opacity-80">
+                <TrendingUp className="inline h-3 w-3 ml-1" />
+                جميع الوحدات العقارية
               </p>
             </CardContent>
           </Card>
-          <Card>
+
+          <Card className="bg-gradient-to-r from-green-500 to-green-600 text-white">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Tasks</CardTitle>
-              <CheckSquare className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">العملاء النشطين</CardTitle>
+              <Users className="h-4 w-4" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground">
-                <Calendar className="inline h-3 w-3" /> 0 due this week
+              <p className="text-xs opacity-80">
+                <Calendar className="inline h-3 w-3 ml-1" />
+                عملاء مع عقود نشطة
               </p>
             </CardContent>
           </Card>
-          <Card>
+
+          <Card className="bg-gradient-to-r from-purple-500 to-purple-600 text-white">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Followers</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">العقود النشطة</CardTitle>
+              <FileText className="h-4 w-4" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground">
-                <Star className="inline h-3 w-3" /> +0 new this week
+              <p className="text-xs opacity-80">
+                <BarChart3 className="inline h-3 w-3 ml-1" />
+                عقود قيد التنفيذ
               </p>
             </CardContent>
           </Card>
-          <Card>
+
+          <Card className="bg-gradient-to-r from-orange-500 to-orange-600 text-white">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Engagement</CardTitle>
-              <Heart className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">رصيد الخزائن</CardTitle>
+              <Wallet className="h-4 w-4" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground">
-                <MessageCircle className="inline h-3 w-3" /> likes & comments
+              <div className="text-2xl font-bold">0 ج.م</div>
+              <p className="text-xs opacity-80">
+                <DollarSign className="inline h-3 w-3 ml-1" />
+                إجمالي الأرصدة
               </p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Quick Actions */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          <Card>
+        {/* Main Actions */}
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
+          <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
-              <CardTitle>Create New Post</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-blue-600" />
+                إدارة الوحدات
+              </CardTitle>
               <CardDescription>
-                Share your thoughts and ideas with your followers
+                إضافة وإدارة الوحدات العقارية والمشاريع
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Button asChild className="w-full">
-                <Link href="/posts/new">
+                <Link href="/units">
                   <Plus className="mr-2 h-4 w-4" />
-                  New Post
+                  إدارة الوحدات
                 </Link>
               </Button>
             </CardContent>
           </Card>
-          
-          <Card>
+
+          <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
-              <CardTitle>Add Task</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-green-600" />
+                إدارة العملاء
+              </CardTitle>
               <CardDescription>
-                Keep track of your todos and manage your productivity
+                إضافة عملاء جدد وإدارة بياناتهم
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Button asChild className="w-full">
-                <Link href="/tasks/new">
+                <Link href="/customers">
                   <Plus className="mr-2 h-4 w-4" />
-                  New Task
+                  إدارة العملاء
                 </Link>
               </Button>
             </CardContent>
           </Card>
-          
-          <Card>
+
+          <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
-              <CardTitle>Explore</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-purple-600" />
+                إدارة العقود
+              </CardTitle>
               <CardDescription>
-                Discover new content and connect with other users
+                إنشاء عقود جديدة ومتابعة الأقساط
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild className="w-full">
+                <Link href="/contracts">
+                  <Plus className="mr-2 h-4 w-4" />
+                  إدارة العقود
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Home className="h-5 w-5 text-indigo-600" />
+                إدارة الشركاء
+              </CardTitle>
+              <CardDescription>
+                إدارة الشركاء والشراكات في الوحدات
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Button asChild className="w-full" variant="outline">
-                <Link href="/social">
+                <Link href="/partners">
                   <Users className="mr-2 h-4 w-4" />
-                  Browse Social
+                  إدارة الشركاء
                 </Link>
               </Button>
             </CardContent>
           </Card>
+
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Wallet className="h-5 w-5 text-orange-600" />
+                إدارة الخزائن
+              </CardTitle>
+              <CardDescription>
+                متابعة الأرصدة والتحويلات المالية
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild className="w-full" variant="outline">
+                <Link href="/safes">
+                  <DollarSign className="mr-2 h-4 w-4" />
+                  إدارة الخزائن
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-red-600" />
+                التقارير والإحصائيات
+              </CardTitle>
+              <CardDescription>
+                تقارير مالية مفصلة وإحصائيات شاملة
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild className="w-full" variant="outline">
+                <Link href="/reports">
+                  <TrendingUp className="mr-2 h-4 w-4" />
+                  عرض التقارير
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Recent Activities */}
+        <Card>
+          <CardHeader>
+            <CardTitle>الأنشطة الأخيرة</CardTitle>
+            <CardDescription>
+              آخر العمليات والتحديثات في النظام
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>لا توجد أنشطة حديثة</p>
+              <p className="text-sm">ابدأ بإضافة وحدات وعملاء لرؤية الأنشطة هنا</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Footer */}
+      <div className="bg-white dark:bg-gray-800 border-t mt-8">
+        <div className="container mx-auto px-4 py-4">
+          <div className="text-center text-sm text-gray-600 dark:text-gray-400">
+            💾 قاعدة بيانات PostgreSQL • تصدير PDF/CSV • بحث وفرز متقدم • أقساط مرنة • عمولة وصيانة • تدفقات نقدية • فلاتر تاريخ للتقارير
+          </div>
         </div>
       </div>
     </div>
