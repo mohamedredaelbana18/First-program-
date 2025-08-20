@@ -1,13 +1,7 @@
 {
-  "framework": "nextjs",
-  "buildCommand": "npm run build && npx prisma generate",
-  "devCommand": "npm run dev",
-  "installCommand": "npm install",
   "functions": {
     "app/api/**/*.ts": {
-      "runtime": "nodejs18.x",
-      "maxDuration": 10
+      "runtime": "nodejs20.x"
     }
-  },
-  "regions": ["iad1"]
+  }
 }

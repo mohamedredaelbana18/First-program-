@@ -1,0 +1,27 @@
+# ملفات لا تُرفع إلى Vercel
+
+# Environment files
+.env*
+!.env.example
+
+# Development files
+.next/
+node_modules/
+*.log
+
+# Database files
+prisma/migrations/
+*.db
+*.sqlite
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation (اختياري)
+QUICK-FIX.md
+VERCEL-DEPLOYMENT.md
