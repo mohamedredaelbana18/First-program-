@@ -15,7 +15,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:seed": "prisma db seed",
-    "generate-secret": "node scripts/generate-secret.js",
+    "generate-secret": "node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\"",
     "setup": "npm run generate-secret && npm run db:generate"
   },
   "dependencies": {
