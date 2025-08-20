@@ -33,9 +33,15 @@ export async function GET() {
 // POST - إضافة وحدة جديدة
 export async function POST(request: NextRequest) {
   try {
-    const { name, type, area, location, price, description, status } = await request.json()
+    console.log('🏗️ بدء إضافة وحدة جديدة...')
+    
+    const body = await request.json()
+    console.log('📦 البيانات المستلمة:', body)
+    
+    const { name, type, area, location, price, description, status } = body
 
     if (!name || !name.trim()) {
+      console.log('❌ اسم الوحدة مفقود')
       return NextResponse.json(
         { error: 'اسم الوحدة مطلوب' },
         { status: 400 }
@@ -43,12 +49,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (!price || isNaN(parseFloat(price))) {
+      console.log('❌ سعر الوحدة غير صحيح:', price)
       return NextResponse.json(
         { error: 'سعر الوحدة مطلوب ويجب أن يكون رقماً صحيحاً' },
         { status: 400 }
       )
     }
 
+    console.log('🔄 إنشاء وحدة في قاعدة البيانات...')
     const unit = await prisma.unit.create({
       data: {
         name: name.trim(),
@@ -61,11 +69,15 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    console.log('✅ تم إنشاء الوحدة بنجاح:', unit.id)
     return NextResponse.json(unit, { status: 201 })
   } catch (error) {
-    console.error('Error creating unit:', error)
+    console.error('❌ خطأ في إنشاء الوحدة:', error)
     return NextResponse.json(
-      { error: 'فشل في إضافة الوحدة' },
+      { 
+        error: 'فشل في إضافة الوحدة',
+        details: error instanceof Error ? error.message : 'خطأ غير معروف'
+      },
       { status: 500 }
     )
   }

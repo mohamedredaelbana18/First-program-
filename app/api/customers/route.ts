@@ -28,15 +28,22 @@ export async function GET() {
 // POST - إضافة عميل جديد
 export async function POST(request: NextRequest) {
   try {
-    const { name, phone, email, address, notes } = await request.json()
+    console.log('📝 بدء إضافة عميل جديد...')
+    
+    const body = await request.json()
+    console.log('📦 البيانات المستلمة:', body)
+    
+    const { name, phone, email, address, notes } = body
 
     if (!name || !name.trim()) {
+      console.log('❌ اسم العميل مفقود')
       return NextResponse.json(
         { error: 'اسم العميل مطلوب' },
         { status: 400 }
       )
     }
 
+    console.log('🔄 إنشاء عميل في قاعدة البيانات...')
     const customer = await prisma.customer.create({
       data: {
         name: name.trim(),
@@ -47,11 +54,15 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    console.log('✅ تم إنشاء العميل بنجاح:', customer.id)
     return NextResponse.json(customer, { status: 201 })
   } catch (error) {
-    console.error('Error creating customer:', error)
+    console.error('❌ خطأ في إنشاء العميل:', error)
     return NextResponse.json(
-      { error: 'فشل في إضافة العميل' },
+      { 
+        error: 'فشل في إضافة العميل',
+        details: error instanceof Error ? error.message : 'خطأ غير معروف'
+      },
       { status: 500 }
     )
   }
