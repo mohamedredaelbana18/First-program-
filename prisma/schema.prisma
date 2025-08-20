@@ -1,0 +1,231 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          Role      @default(USER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  accounts Account[]
+  sessions Session[]
+  posts    Post[]
+  comments Comment[]
+  likes    Like[]
+  follows  Follow[] @relation("UserFollows")
+  followers Follow[] @relation("UserFollowers")
+  tasks    Task[]
+  projects Project[]
+  categories Category[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verificationtokens")
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  title     String
+  content   String   @db.Text
+  published Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  authorId  String
+
+  // Relations
+  author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments Comment[]
+  likes    Like[]
+  tags     PostTag[]
+
+  @@map("posts")
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  authorId  String
+  postId    String
+
+  // Relations
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@map("comments")
+}
+
+model Like {
+  id     String @id @default(cuid())
+  userId String
+  postId String
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@map("likes")
+}
+
+model Follow {
+  id          String @id @default(cuid())
+  followerId  String
+  followingId String
+
+  // Relations
+  follower  User @relation("UserFollows", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@map("follows")
+}
+
+model Tag {
+  id    String @id @default(cuid())
+  name  String @unique
+  color String @default("#3B82F6")
+
+  // Relations
+  posts PostTag[]
+
+  @@map("tags")
+}
+
+model PostTag {
+  id     String @id @default(cuid())
+  postId String
+  tagId  String
+
+  // Relations
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, tagId])
+  @@map("post_tags")
+}
+
+model Task {
+  id          String      @id @default(cuid())
+  title       String
+  description String?     @db.Text
+  status      TaskStatus  @default(PENDING)
+  priority    Priority    @default(MEDIUM)
+  dueDate     DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  userId      String
+  projectId   String?
+  categoryId  String?
+
+  // Relations
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project  Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@map("tasks")
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text
+  color       String   @default("#3B82F6")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userId      String
+
+  // Relations
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks Task[]
+
+  @@map("projects")
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String
+  color     String   @default("#10B981")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    String
+
+  // Relations
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks Task[]
+
+  @@map("categories")
+}
+
+enum Role {
+  USER
+  ADMIN
+  MODERATOR
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
