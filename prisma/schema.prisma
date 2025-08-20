@@ -1,5 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// Real Estate Investment Manager - Database Schema
+// مدير الاستثمار العقاري - مخطط قاعدة البيانات
 
 generator client {
   provider = "prisma-client-js"
@@ -10,222 +10,286 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  role          Role      @default(USER)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  // Relations
-  accounts Account[]
-  sessions Session[]
-  posts    Post[]
-  comments Comment[]
-  likes    Like[]
-  follows  Follow[] @relation("UserFollows")
-  followers Follow[] @relation("UserFollowers")
-  tasks    Task[]
-  projects Project[]
-  categories Category[]
-
-  @@map("users")
-}
-
-model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? @db.Text
-  session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-  @@map("accounts")
-}
-
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("sessions")
-}
-
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-  @@map("verificationtokens")
-}
-
-model Post {
+// العملاء - Customers
+model Customer {
   id        String   @id @default(cuid())
-  title     String
-  content   String   @db.Text
-  published Boolean  @default(false)
+  name      String   // اسم العميل
+  phone     String?  // رقم الهاتف
+  email     String?  // البريد الإلكتروني
+  address   String?  // العنوان
+  notes     String?  @db.Text // ملاحظات
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  authorId  String
 
   // Relations
-  author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  comments Comment[]
-  likes    Like[]
-  tags     PostTag[]
+  contracts Contract[] // العقود المرتبطة بالعميل
 
-  @@map("posts")
+  @@map("customers")
 }
 
-model Comment {
-  id        String   @id @default(cuid())
-  content   String   @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  authorId  String
-  postId    String
-
-  // Relations
-  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  @@map("comments")
-}
-
-model Like {
-  id     String @id @default(cuid())
-  userId String
-  postId String
-
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, postId])
-  @@map("likes")
-}
-
-model Follow {
-  id          String @id @default(cuid())
-  followerId  String
-  followingId String
-
-  // Relations
-  follower  User @relation("UserFollows", fields: [followerId], references: [id], onDelete: Cascade)
-  following User @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
-
-  @@unique([followerId, followingId])
-  @@map("follows")
-}
-
-model Tag {
-  id    String @id @default(cuid())
-  name  String @unique
-  color String @default("#3B82F6")
-
-  // Relations
-  posts PostTag[]
-
-  @@map("tags")
-}
-
-model PostTag {
-  id     String @id @default(cuid())
-  postId String
-  tagId  String
-
-  // Relations
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
-
-  @@unique([postId, tagId])
-  @@map("post_tags")
-}
-
-model Task {
-  id          String      @id @default(cuid())
-  title       String
-  description String?     @db.Text
-  status      TaskStatus  @default(PENDING)
-  priority    Priority    @default(MEDIUM)
-  dueDate     DateTime?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  userId      String
-  projectId   String?
-  categoryId  String?
-
-  // Relations
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project  Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-
-  @@map("tasks")
-}
-
-model Project {
+// الوحدات العقارية - Units
+model Unit {
   id          String   @id @default(cuid())
-  name        String
-  description String?  @db.Text
-  color       String   @default("#3B82F6")
+  name        String   // اسم الوحدة
+  type        String?  // نوع الوحدة (شقة، فيلا، محل، إلخ)
+  area        Float?   // المساحة
+  location    String?  // الموقع
+  price       Float    @default(0) // السعر
+  description String?  @db.Text // وصف الوحدة
+  status      String   @default("متاح") // الحالة
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  userId      String
 
   // Relations
-  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tasks Task[]
+  contracts    Contract[]    // العقود المرتبطة بالوحدة
+  unitPartners UnitPartner[] // الشراكات في الوحدة
 
-  @@map("projects")
+  @@map("units")
 }
 
-model Category {
+// الشركاء - Partners
+model Partner {
   id        String   @id @default(cuid())
-  name      String
-  color     String   @default("#10B981")
+  name      String   // اسم الشريك
+  phone     String?  // رقم الهاتف
+  email     String?  // البريد الإلكتروني
+  address   String?  // العنوان
+  share     Float    @default(0) // نسبة الشراكة
+  groupId   String?  // مجموعة الشريك
+  notes     String?  @db.Text // ملاحظات
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  userId    String
 
   // Relations
-  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tasks Task[]
+  unitPartners UnitPartner[] // شراكات الوحدات
+  partnerDebts PartnerDebt[] // ديون الشريك
+  group        PartnerGroup? @relation(fields: [groupId], references: [id])
 
-  @@map("categories")
+  @@map("partners")
 }
 
-enum Role {
-  USER
-  ADMIN
-  MODERATOR
+// شراكات الوحدات - Unit Partners
+model UnitPartner {
+  id        String   @id @default(cuid())
+  unitId    String   // معرف الوحدة
+  partnerId String   // معرف الشريك
+  share     Float    @default(0) // نسبة الشراكة في الوحدة
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  unit    Unit    @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@unique([unitId, partnerId])
+  @@map("unit_partners")
 }
 
-enum TaskStatus {
-  PENDING
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
+// العقود - Contracts
+model Contract {
+  id           String   @id @default(cuid())
+  customerId   String   // معرف العميل
+  unitId       String   // معرف الوحدة
+  totalPrice   Float    @default(0) // السعر الإجمالي
+  downPayment  Float    @default(0) // المقدم
+  remaining    Float    @default(0) // المبلغ المتبقي
+  installments Int      @default(0) // عدد الأقساط
+  startDate    DateTime @default(now()) // تاريخ البداية
+  endDate      DateTime? // تاريخ النهاية
+  status       String   @default("نشط") // حالة العقد
+  notes        String?  @db.Text // ملاحظات
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  customer         Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  unit             Unit              @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  installmentsList Installment[]     // قائمة الأقساط
+  contractVouchers ContractVoucher[] // سندات العقد
+
+  @@map("contracts")
 }
 
-enum Priority {
-  LOW
-  MEDIUM
-  HIGH
-  URGENT
+// الأقساط - Installments
+model Installment {
+  id         String    @id @default(cuid())
+  contractId String    // معرف العقد
+  amount     Float     @default(0) // مبلغ القسط
+  dueDate    DateTime  // تاريخ الاستحقاق
+  paidDate   DateTime? // تاريخ الدفع
+  status     String    @default("مستحق") // حالة القسط
+  notes      String?   @db.Text // ملاحظات
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  // Relations
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@map("installments")
+}
+
+// ديون الشركاء - Partner Debts
+model PartnerDebt {
+  id        String    @id @default(cuid())
+  partnerId String    // معرف الشريك
+  amount    Float     @default(0) // مبلغ الدين
+  dueDate   DateTime? // تاريخ الاستحقاق
+  paidDate  DateTime? // تاريخ السداد
+  status    String    @default("مستحق") // حالة الدين
+  notes     String?   @db.Text // ملاحظات
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@map("partner_debts")
+}
+
+// الخزائن - Safes
+model Safe {
+  id        String   @id @default(cuid())
+  name      String   // اسم الخزنة
+  balance   Float    @default(0) // الرصيد
+  currency  String   @default("EGP") // العملة
+  notes     String?  @db.Text // ملاحظات
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  transfersFrom Transfer[] @relation("FromSafe")
+  transfersTo   Transfer[] @relation("ToSafe")
+  vouchers      Voucher[]  // السندات المرتبطة
+
+  @@map("safes")
+}
+
+// التحويلات - Transfers
+model Transfer {
+  id          String   @id @default(cuid())
+  fromSafeId  String   // معرف الخزنة المرسلة
+  toSafeId    String   // معرف الخزنة المستقبلة
+  amount      Float    @default(0) // المبلغ
+  description String?  @db.Text // وصف التحويل
+  date        DateTime @default(now()) // تاريخ التحويل
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  fromSafe Safe @relation("FromSafe", fields: [fromSafeId], references: [id])
+  toSafe   Safe @relation("ToSafe", fields: [toSafeId], references: [id])
+
+  @@map("transfers")
+}
+
+// سجل العمليات - Audit Log
+model AuditLog {
+  id          String   @id @default(cuid())
+  description String   // وصف العملية
+  details     Json?    // تفاصيل العملية
+  timestamp   DateTime @default(now()) // وقت العملية
+  userId      String?  // معرف المستخدم (إذا كان متاحاً)
+
+  @@map("audit_log")
+}
+
+// السندات - Vouchers
+model Voucher {
+  id          String   @id @default(cuid())
+  type        String   // نوع السند (إيداع، سحب، إلخ)
+  amount      Float    @default(0) // المبلغ
+  description String?  @db.Text // وصف السند
+  date        DateTime @default(now()) // تاريخ السند
+  safeId      String?  // معرف الخزنة
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  safe             Safe?             @relation(fields: [safeId], references: [id])
+  contractVouchers ContractVoucher[] // ربط السندات بالعقود
+
+  @@map("vouchers")
+}
+
+// ربط السندات بالعقود - Contract Vouchers
+model ContractVoucher {
+  id         String @id @default(cuid())
+  contractId String // معرف العقد
+  voucherId  String // معرف السند
+
+  // Relations
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  voucher  Voucher  @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, voucherId])
+  @@map("contract_vouchers")
+}
+
+// مستحقات الوسطاء - Broker Dues
+model BrokerDue {
+  id        String    @id @default(cuid())
+  brokerId  String    // معرف الوسيط
+  amount    Float     @default(0) // مبلغ المستحق
+  dueDate   DateTime? // تاريخ الاستحقاق
+  paidDate  DateTime? // تاريخ الدفع
+  status    String    @default("مستحق") // الحالة
+  notes     String?   @db.Text // ملاحظات
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  broker Broker @relation(fields: [brokerId], references: [id], onDelete: Cascade)
+
+  @@map("broker_dues")
+}
+
+// الوسطاء - Brokers
+model Broker {
+  id          String      @id @default(cuid())
+  name        String      // اسم الوسيط
+  phone       String?     // رقم الهاتف
+  email       String?     // البريد الإلكتروني
+  address     String?     // العنوان
+  commission  Float       @default(0) // نسبة العمولة
+  notes       String?     @db.Text // ملاحظات
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relations
+  brokerDues BrokerDue[] // مستحقات الوسيط
+
+  @@map("brokers")
+}
+
+// مجموعات الشركاء - Partner Groups
+model PartnerGroup {
+  id          String   @id @default(cuid())
+  name        String   // اسم المجموعة
+  description String?  @db.Text // وصف المجموعة
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  partners Partner[] // الشركاء في المجموعة
+
+  @@map("partner_groups")
+}
+
+// الإعدادات - Settings
+model Setting {
+  id    String @id @default(cuid())
+  key   String @unique // مفتاح الإعداد
+  value Json   // قيمة الإعداد
+  type  String @default("string") // نوع الإعداد
+
+  @@map("settings")
+}
+
+// بيانات متنوعة - Key-Value Store
+model KeyValue {
+  id    String @id @default(cuid())
+  key   String @unique // المفتاح
+  value Json   // القيمة
+
+  @@map("key_values")
 }
