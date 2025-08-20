@@ -35,6 +35,37 @@ export default function InstallmentsPageAccordion() {
     }
   }
 
+  // دالة تحويل حالة القسط من DB إلى النوع المطلوب
+  const toStatus = (dbStatus: string, dueDate: Date): 'paid' | 'unpaid' | 'overdue' | 'pending' => {
+    if (!dbStatus) return 'pending'
+    
+    const status = dbStatus.toLowerCase().trim()
+    
+    switch (status) {
+      case 'مدفوع':
+      case 'paid':
+        return 'paid'
+      case 'مستحق':
+      case 'unpaid':
+        // التحقق من التأخير
+        const today = new Date()
+        const due = new Date(dueDate)
+        return due < today ? 'overdue' : 'unpaid'
+      case 'متأخر':
+      case 'overdue':
+        return 'overdue'
+      case 'معلق':
+      case 'مؤجل':
+      case 'pending':
+        return 'pending'
+      default:
+        // للحالات غير المعروفة، تحقق من التاريخ
+        const currentDate = new Date()
+        const dueDateTime = new Date(dueDate)
+        return dueDateTime < currentDate ? 'overdue' : 'pending'
+    }
+  }
+
   const handlePayInstallment = async (id: string) => {
     try {
       const response = await fetch(`/api/installments/${id}/pay`, {
@@ -54,21 +85,26 @@ export default function InstallmentsPageAccordion() {
     }
   }
 
-  // تحويل البيانات للتنسيق المطلوب
-  const accordionData = installments.map((installment: any) => ({
-    id: installment.id,
-    clientName: installment.contract?.customer?.name || 'عميل محذوف',
-    unitName: installment.contract?.unit?.name || 'وحدة محذوفة',
-    unitType: installment.contract?.unit?.unitType || undefined,
-    partners: [], // سيتم جلبها لاحقاً
-    amount: installment.amount,
-    dueDate: installment.dueDate,
-    contractCode: installment.contract?.code || installment.contractId,
-    status: installment.status === 'مدفوع' ? 'paid' : 'unpaid',
-    notes: installment.notes,
-    totalInstallments: installment.contract?.installments,
-    paidDate: installment.paidDate
-  }))
+  // تحويل البيانات للتنسيق المطلوب مع إصلاح TypeScript
+  const accordionData = installments.map((installment: any) => {
+    // تحديد نوع partners بشكل صريح
+    const partners: Array<{ name: string; sharePercent?: number }> = []
+    
+    return {
+      id: installment.id,
+      clientName: installment.contract?.customer?.name || 'عميل محذوف',
+      unitName: installment.contract?.unit?.name || 'وحدة محذوفة',
+      unitType: installment.contract?.unit?.unitType || undefined,
+      partners, // مصفوفة مُعرّفة بشكل صريح
+      amount: installment.amount,
+      dueDate: installment.dueDate,
+      contractCode: installment.contract?.code || installment.contractId,
+      status: toStatus(installment.status, new Date(installment.dueDate)), // استخدام دالة التحويل
+      notes: installment.notes,
+      totalInstallments: installment.contract?.installments,
+      paidDate: installment.paidDate
+    }
+  })
 
   return (
     <Layout title="إدارة الأقساط" subtitle="متابعة وإدارة جميع أقساط العقود مع عرض تفصيلي">
