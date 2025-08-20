@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     console.log('📦 البيانات المستلمة:', body)
     
-    const { name, phone, email, address, notes } = body
+    const { name, phone, email, nationalId, address, status, notes } = body
 
     if (!name || !name.trim()) {
       console.log('❌ اسم العميل مفقود')
@@ -49,7 +49,9 @@ export async function POST(request: NextRequest) {
         name: name.trim(),
         phone: phone?.trim() || null,
         email: email?.trim() || null,
+        nationalId: nationalId?.trim() || null,
         address: address?.trim() || null,
+        status: status?.trim() || 'نشط',
         notes: notes?.trim() || null,
       }
     })

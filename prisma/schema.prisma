@@ -12,14 +12,16 @@ datasource db {
 
 // العملاء - Customers
 model Customer {
-  id        String   @id @default(cuid())
-  name      String   // اسم العميل
-  phone     String?  // رقم الهاتف
-  email     String?  // البريد الإلكتروني
-  address   String?  // العنوان
-  notes     String?  @db.Text // ملاحظات
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  name       String   // اسم العميل
+  phone      String?  // رقم الهاتف
+  email      String?  // البريد الإلكتروني
+  nationalId String?  // الرقم القومي
+  address    String?  // العنوان
+  status     String   @default("نشط") // حالة العميل (نشط، غير نشط)
+  notes      String?  @db.Text // ملاحظات
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   // Relations
   contracts Contract[] // العقود المرتبطة بالعميل
@@ -31,12 +33,18 @@ model Customer {
 model Unit {
   id          String   @id @default(cuid())
   name        String   // اسم الوحدة
+  code        String?  // كود الوحدة
   type        String?  // نوع الوحدة (شقة، فيلا، محل، إلخ)
-  area        Float?   // المساحة
+  unitType    String   @default("سكني") // تصنيف الوحدة (سكني، تجاري، إداري)
+  area        String?  // المساحة (كنص لمرونة أكبر)
+  floor       String?  // رقم الدور
+  building    String?  // رقم العمارة
   location    String?  // الموقع
   price       Float    @default(0) // السعر
+  totalPrice  Float    @default(0) // السعر الإجمالي
   description String?  @db.Text // وصف الوحدة
   status      String   @default("متاح") // الحالة
+  notes       String?  @db.Text // ملاحظات
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -87,19 +95,25 @@ model UnitPartner {
 
 // العقود - Contracts
 model Contract {
-  id           String   @id @default(cuid())
-  customerId   String   // معرف العميل
-  unitId       String   // معرف الوحدة
-  totalPrice   Float    @default(0) // السعر الإجمالي
-  downPayment  Float    @default(0) // المقدم
-  remaining    Float    @default(0) // المبلغ المتبقي
-  installments Int      @default(0) // عدد الأقساط
-  startDate    DateTime @default(now()) // تاريخ البداية
-  endDate      DateTime? // تاريخ النهاية
-  status       String   @default("نشط") // حالة العقد
-  notes        String?  @db.Text // ملاحظات
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                String   @id @default(cuid())
+  code              String?  // كود العقد
+  customerId        String   // معرف العميل
+  unitId            String   // معرف الوحدة
+  totalPrice        Float    @default(0) // السعر الإجمالي
+  downPayment       Float    @default(0) // المقدم
+  remaining         Float    @default(0) // المبلغ المتبقي
+  discountAmount    Float    @default(0) // مبلغ الخصم
+  installments      Int      @default(0) // عدد الأقساط
+  installmentAmount Float    @default(0) // قيمة القسط الواحد
+  startDate         DateTime @default(now()) // تاريخ البداية (start)
+  endDate           DateTime? // تاريخ النهاية
+  brokerName        String?  // اسم السمسار
+  brokerAmount      Float    @default(0) // مبلغ عمولة السمسار
+  commissionSafeId  String?  // معرف خزنة العمولة
+  status            String   @default("نشط") // حالة العقد
+  notes             String?  @db.Text // ملاحظات
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   // Relations
   customer         Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -196,11 +210,14 @@ model AuditLog {
 // السندات - Vouchers
 model Voucher {
   id          String   @id @default(cuid())
-  type        String   // نوع السند (إيداع، سحب، إلخ)
+  type        String   // نوع السند (receipt = قبض، payment = صرف)
   amount      Float    @default(0) // المبلغ
   description String?  @db.Text // وصف السند
   date        DateTime @default(now()) // تاريخ السند
   safeId      String?  // معرف الخزنة
+  payer       String?  // اسم الدافع (للقبض)
+  beneficiary String?  // اسم المستفيد (للصرف)
+  linked_ref  String?  // مرجع مرتبط (عقد، قسط، مستحق وسيط)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

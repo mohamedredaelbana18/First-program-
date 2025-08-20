@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     console.log('📦 البيانات المستلمة:', body)
     
-    const { name, type, area, location, price, description, status } = body
+    const { name, code, type, unitType, area, floor, building, location, price, totalPrice, description, status, notes } = body
 
     if (!name || !name.trim()) {
       console.log('❌ اسم الوحدة مفقود')
@@ -60,12 +60,18 @@ export async function POST(request: NextRequest) {
     const unit = await prisma.unit.create({
       data: {
         name: name.trim(),
+        code: code?.trim() || null,
         type: type?.trim() || null,
-        area: area ? parseFloat(area) : null,
+        unitType: unitType?.trim() || 'سكني',
+        area: area?.trim() || null,
+        floor: floor?.trim() || null,
+        building: building?.trim() || null,
         location: location?.trim() || null,
         price: parseFloat(price),
+        totalPrice: totalPrice ? parseFloat(totalPrice) : parseFloat(price),
         description: description?.trim() || null,
         status: status?.trim() || 'متاح',
+        notes: notes?.trim() || null,
       }
     })
 

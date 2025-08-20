@@ -25,7 +25,9 @@ interface Customer {
   name: string
   phone?: string | null
   email?: string | null
+  nationalId?: string | null
   address?: string | null
+  status: string
   notes?: string | null
   createdAt: Date
   updatedAt: Date
@@ -41,7 +43,9 @@ export default function CustomersPage() {
     name: '',
     phone: '',
     email: '',
+    nationalId: '',
     address: '',
+    status: 'نشط',
     notes: ''
   })
 
@@ -91,7 +95,7 @@ export default function CustomersPage() {
           createdAt: new Date(customer.createdAt),
           updatedAt: new Date(customer.updatedAt)
         }, ...customers])
-        setNewCustomer({ name: '', phone: '', email: '', address: '', notes: '' })
+        setNewCustomer({ name: '', phone: '', email: '', nationalId: '', address: '', status: 'نشط', notes: '' })
         setShowAddForm(false)
       } else {
         const error = await response.json()
@@ -127,7 +131,10 @@ export default function CustomersPage() {
   const filteredCustomers = customers.filter(customer =>
     customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     customer.phone?.includes(searchTerm) ||
-    customer.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    customer.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    customer.nationalId?.includes(searchTerm) ||
+    customer.address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    customer.status.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   return (
@@ -209,6 +216,16 @@ export default function CustomersPage() {
                 />
               </div>
               <div>
+                <Label htmlFor="nationalId">الرقم القومي</Label>
+                <Input
+                  id="nationalId"
+                  value={newCustomer.nationalId}
+                  onChange={(e) => setNewCustomer({...newCustomer, nationalId: e.target.value})}
+                  placeholder="أدخل الرقم القومي"
+                  disabled={submitting}
+                />
+              </div>
+              <div>
                 <Label htmlFor="address">العنوان</Label>
                 <Input
                   id="address"
@@ -217,6 +234,20 @@ export default function CustomersPage() {
                   placeholder="أدخل العنوان"
                   disabled={submitting}
                 />
+              </div>
+              <div>
+                <Label htmlFor="status">حالة العميل</Label>
+                <select
+                  id="status"
+                  value={newCustomer.status}
+                  onChange={(e) => setNewCustomer({...newCustomer, status: e.target.value})}
+                  disabled={submitting}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
+                >
+                  <option value="نشط">نشط</option>
+                  <option value="غير نشط">غير نشط</option>
+                  <option value="محتمل">محتمل</option>
+                </select>
               </div>
               <div className="md:col-span-2">
                 <Label htmlFor="notes">ملاحظات</Label>
