@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Layout } from '@/components/layout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -43,6 +43,50 @@ export default function InstallmentsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [dateFilter, setDateFilter] = useState('all')
+  const [loading, setLoading] = useState(true)
+
+  // جلب الأقساط من قاعدة البيانات عند تحميل الصفحة
+  useEffect(() => {
+    fetchInstallments()
+  }, [])
+
+  const fetchInstallments = async () => {
+    setLoading(true)
+    try {
+      const response = await fetch('/api/installments')
+      if (response.ok) {
+        const data = await response.json()
+        setInstallments(data.map((installment: any) => ({
+          ...installment,
+          dueDate: new Date(installment.dueDate),
+          paidDate: installment.paidDate ? new Date(installment.paidDate) : undefined,
+          createdAt: new Date(installment.createdAt),
+          contractNumber: installment.contract?.code || installment.contractId,
+          customerName: installment.contract?.customer?.name || 'عميل محذوف',
+          unitName: getUnitDisplayName(installment.contract?.unit)
+        })))
+      } else {
+        console.error('فشل في جلب الأقساط')
+      }
+    } catch (error) {
+      console.error('خطأ في جلب الأقساط:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // دالة لعرض اسم الوحدة مثل البرنامج الأصلي
+  const getUnitDisplayName = (unit: any) => {
+    if (!unit) return '—'
+    
+    const parts = []
+    if (unit.name) parts.push(`اسم الوحدة (${unit.name})`)
+    if (unit.floor) parts.push(`رقم الدور (${unit.floor})`)
+    if (unit.building) parts.push(`رقم العمارة (${unit.building})`)
+    if (unit.code) parts.push(`كود (${unit.code})`)
+    
+    return parts.length > 0 ? parts.join(' ') : unit.name || 'وحدة غير محددة'
+  }
 
   const installmentStatuses = [
     { value: 'all', label: 'جميع الأقساط', color: 'bg-gray-100' },
@@ -60,13 +104,30 @@ export default function InstallmentsPage() {
     { value: 'overdue', label: 'متأخرة' }
   ]
 
-  const handlePayInstallment = (id: string) => {
-    if (confirm('هل تريد تسديد هذا القسط؟')) {
-      setInstallments(installments.map(inst => 
-        inst.id === id 
-          ? { ...inst, status: 'مدفوع', paidDate: new Date() }
-          : inst
-      ))
+  const handlePayInstallment = async (id: string) => {
+    if (!confirm('هل تريد تسديد هذا القسط؟')) return
+
+    try {
+      const response = await fetch(`/api/installments/${id}/pay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paidDate: new Date().toISOString() }),
+      })
+
+      if (response.ok) {
+        setInstallments(installments.map(inst => 
+          inst.id === id 
+            ? { ...inst, status: 'مدفوع', paidDate: new Date() }
+            : inst
+        ))
+        alert('تم تسديد القسط بنجاح!')
+      } else {
+        const error = await response.json()
+        alert(error.error || 'فشل في تسديد القسط')
+      }
+    } catch (error) {
+      console.error('خطأ في تسديد القسط:', error)
+      alert('فشل في تسديد القسط')
     }
   }
 
