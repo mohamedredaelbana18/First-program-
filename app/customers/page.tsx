@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Layout } from '@/components/layout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -71,56 +72,39 @@ export default function CustomersPage() {
   )
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800" dir="rtl">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm border-b">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/">
-                  <ArrowLeft className="h-4 w-4" />
-                </Link>
-              </Button>
-              <Users className="h-6 w-6 text-green-600" />
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  إدارة العملاء
-                </h1>
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  إدارة وتنظيم بيانات العملاء
-                </p>
-              </div>
-            </div>
-            <Button onClick={() => setShowAddForm(true)} className="bg-green-600 hover:bg-green-700">
-              <Plus className="h-4 w-4 ml-2" />
-              عميل جديد
-            </Button>
+    <Layout title="إدارة العملاء" subtitle="إدارة وتنظيم بيانات العملاء ومعلومات الاتصال">
+      {/* Action Bar */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
+            <Users className="h-5 w-5 text-green-600" />
           </div>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              قاعدة بيانات العملاء
+            </h2>
+            <p className="text-sm text-gray-500">
+              إجمالي العملاء: {customers.length}
+            </p>
+          </div>
+        </div>
+        <Button onClick={() => setShowAddForm(true)} className="bg-green-600 hover:bg-green-700">
+          <Plus className="h-4 w-4 ml-2" />
+          عميل جديد
+        </Button>
+      </div>
+      {/* Search Bar */}
+      <div className="mb-6">
+        <div className="relative">
+          <Search className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="البحث في العملاء (الاسم، الهاتف، البريد الإلكتروني)..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pr-10"
+          />
         </div>
       </div>
-
-      <div className="container mx-auto px-4 py-8">
-        {/* Search and Stats */}
-        <div className="grid gap-6 md:grid-cols-4 mb-8">
-          <div className="md:col-span-3">
-            <div className="relative">
-              <Search className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="البحث في العملاء (الاسم، الهاتف، البريد الإلكتروني)..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pr-10"
-              />
-            </div>
-          </div>
-          <Card className="bg-gradient-to-r from-green-500 to-green-600 text-white">
-            <CardContent className="p-4">
-              <div className="text-2xl font-bold">{customers.length}</div>
-              <p className="text-sm opacity-80">إجمالي العملاء</p>
-            </CardContent>
-          </Card>
-        </div>
 
         {/* Add Customer Form */}
         {showAddForm && (
@@ -283,7 +267,6 @@ export default function CustomersPage() {
             ))}
           </div>
         )}
-      </div>
-    </div>
+    </Layout>
   )
 }
