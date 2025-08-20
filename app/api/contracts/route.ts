@@ -28,39 +28,59 @@ export async function GET() {
 // POST - إضافة عقد جديد
 export async function POST(request: NextRequest) {
   try {
+    console.log('📝 بدء إنشاء عقد جديد...')
+    
+    const body = await request.json()
+    console.log('📦 البيانات المستلمة:', body)
+    
     const { 
+      code,
       customerId, 
       unitId, 
       totalPrice, 
       downPayment, 
+      discountAmount,
       installments, 
       startDate, 
-      endDate, 
+      endDate,
+      brokerName,
+      brokerAmount,
+      commissionSafeId,
       status, 
       notes 
-    } = await request.json()
+    } = body
 
     if (!customerId || !unitId || !totalPrice) {
       return NextResponse.json(
-        { error: 'بيانات العقد غير مكتملة' },
+        { error: 'بيانات العقد غير مكتملة (العميل، الوحدة، السعر مطلوبة)' },
         { status: 400 }
       )
     }
 
     const totalPriceNum = parseFloat(totalPrice)
     const downPaymentNum = parseFloat(downPayment) || 0
-    const remaining = totalPriceNum - downPaymentNum
+    const discountNum = parseFloat(discountAmount) || 0
+    const remaining = totalPriceNum - downPaymentNum - discountNum
+    const installmentCount = parseInt(installments) || 0
+    const installmentAmount = installmentCount > 0 ? remaining / installmentCount : 0
 
+    console.log('🔄 إنشاء عقد في قاعدة البيانات...')
     const contract = await prisma.contract.create({
       data: {
+        code: code?.trim() || `CON-${Date.now()}`,
         customerId,
         unitId,
         totalPrice: totalPriceNum,
         downPayment: downPaymentNum,
         remaining,
-        installments: parseInt(installments) || 0,
+        discountAmount: discountNum,
+        installments: installmentCount,
+        installmentAmount,
         startDate: new Date(startDate),
         endDate: endDate ? new Date(endDate) : null,
+        brokerName: brokerName?.trim() || null,
+        brokerAmount: parseFloat(brokerAmount) || 0,
+        commissionSafeId: commissionSafeId?.trim() || null,
         status: status || 'نشط',
         notes: notes?.trim() || null,
       },
