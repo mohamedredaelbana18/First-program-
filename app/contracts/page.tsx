@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Layout } from '@/components/layout'
 import { CustomerSelect } from '@/components/dropdowns/customer-select'
 import { UnitSelect } from '@/components/dropdowns/unit-select'
+import { ContractInstallmentsDropdown } from '@/components/contract-installments-dropdown'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -701,12 +702,6 @@ export default function ContractsPageComplete() {
                     <Edit className="h-4 w-4 ml-1" />
                     تعديل العقد
                   </Button>
-                  <Button variant="outline" size="sm" className="flex-1" asChild>
-                    <a href={`/installments?contract=${contract.id}`}>
-                      <Calendar className="h-4 w-4 ml-1" />
-                      إدارة الأقساط ({contract.installments})
-                    </a>
-                  </Button>
                   <Button 
                     variant="outline" 
                     size="sm" 
@@ -714,6 +709,18 @@ export default function ContractsPageComplete() {
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
+                </div>
+
+                {/* Dropdown الأقساط */}
+                <div className="mt-4">
+                  <ContractInstallmentsDropdown
+                    contractId={contract.id}
+                    contractCode={contract.code || contract.id}
+                    unitName={contract.unitName}
+                    unitType={undefined} // سيتم جلبه من العلاقات لاحقاً
+                    partners={[]} // سيتم جلبه من العلاقات لاحقاً
+                    totalPrice={contract.totalPrice}
+                  />
                 </div>
               </CardContent>
             </Card>
