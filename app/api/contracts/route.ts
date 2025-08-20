@@ -73,25 +73,40 @@ export async function POST(request: NextRequest) {
     // إنشاء الأقساط تلقائياً إذا كان هناك مبلغ متبقي وعدد أقساط
     if (remaining > 0 && parseInt(installments) > 0) {
       const installmentAmount = remaining / parseInt(installments)
-      const installmentPromises = []
+      const installmentsData = []
 
       for (let i = 1; i <= parseInt(installments); i++) {
         const dueDate = new Date(startDate)
         dueDate.setMonth(dueDate.getMonth() + i)
 
-        installmentPromises.push(
-          prisma.installment.create({
-            data: {
-              contractId: contract.id,
-              amount: installmentAmount,
-              dueDate,
-              status: 'مستحق'
-            }
-          })
-        )
+        installmentsData.push({
+          contractId: contract.id,
+          amount: installmentAmount,
+          dueDate,
+          status: 'مستحق',
+          notes: `قسط رقم ${i} من ${installments}`
+        })
       }
 
-      await Promise.all(installmentPromises)
+      // إنشاء جميع الأقساط دفعة واحدة للأداء الأفضل
+      await prisma.installment.createMany({
+        data: installmentsData
+      })
+
+      // تسجيل العملية في سجل الأنشطة
+      await prisma.auditLog.create({
+        data: {
+          description: `تم توليد ${installments} قسط للعقد ${contract.id}`,
+          details: {
+            contractId: contract.id,
+            customerId: contract.customerId,
+            unitId: contract.unitId,
+            installmentCount: parseInt(installments),
+            installmentAmount,
+            totalRemaining: remaining
+          }
+        }
+      })
     }
 
     return NextResponse.json(contract, { status: 201 })

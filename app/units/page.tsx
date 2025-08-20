@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Layout } from '@/components/layout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -104,36 +105,27 @@ export default function UnitsPage() {
   const availableUnits = units.filter(u => u.status === 'متاح').length
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800" dir="rtl">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm border-b">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/">
-                  <ArrowLeft className="h-4 w-4" />
-                </Link>
-              </Button>
-              <Building2 className="h-6 w-6 text-blue-600" />
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  إدارة الوحدات العقارية
-                </h1>
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  إدارة وتنظيم الوحدات والمشاريع العقارية
-                </p>
-              </div>
-            </div>
-            <Button onClick={() => setShowAddForm(true)} className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="h-4 w-4 ml-2" />
-              وحدة جديدة
-            </Button>
+    <Layout title="إدارة الوحدات العقارية" subtitle="إدارة وتنظيم الوحدات والمشاريع العقارية">
+      {/* Action Bar */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+            <Building2 className="h-5 w-5 text-blue-600" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              قاعدة بيانات الوحدات
+            </h2>
+            <p className="text-sm text-gray-500">
+              إجمالي الوحدات: {units.length} | القيمة الإجمالية: {totalValue.toLocaleString('ar-EG')} ج.م
+            </p>
           </div>
         </div>
+        <Button onClick={() => setShowAddForm(true)} className="bg-blue-600 hover:bg-blue-700">
+          <Plus className="h-4 w-4 ml-2" />
+          وحدة جديدة
+        </Button>
       </div>
-
-      <div className="container mx-auto px-4 py-8">
         {/* Search and Stats */}
         <div className="grid gap-6 md:grid-cols-5 mb-8">
           <div className="md:col-span-2">
@@ -363,7 +355,6 @@ export default function UnitsPage() {
             ))}
           </div>
         )}
-      </div>
-    </div>
+    </Layout>
   )
 }
