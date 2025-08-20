@@ -19,8 +19,6 @@ const nextConfig = {
   // تحسينات للإنتاج
   swcMinify: true,
   compress: true,
-  // إعدادات Vercel
-  output: 'standalone',
 }
 
 module.exports = nextConfig
