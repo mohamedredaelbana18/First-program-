@@ -9,14 +9,21 @@ import bcrypt from 'bcryptjs'
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as any,
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
-    GitHubProvider({
-      clientId: process.env.GITHUB_CLIENT_ID!,
-      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
-    }),
+    // Google OAuth - يتطلب GOOGLE_CLIENT_ID و GOOGLE_CLIENT_SECRET
+    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET ? [
+      GoogleProvider({
+        clientId: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      })
+    ] : []),
+    
+    // GitHub OAuth - يتطلب GITHUB_ID و GITHUB_SECRET
+    ...(process.env.GITHUB_ID && process.env.GITHUB_SECRET ? [
+      GitHubProvider({
+        clientId: process.env.GITHUB_ID,
+        clientSecret: process.env.GITHUB_SECRET,
+      })
+    ] : []),
     CredentialsProvider({
       name: 'credentials',
       credentials: {
@@ -79,4 +86,13 @@ export const authOptions: NextAuthOptions = {
     signIn: '/auth/signin',
     signUp: '/auth/signup',
   },
+  // إعدادات Vercel
+  secret: process.env.NEXTAUTH_SECRET,
+  // التأكد من أن NEXTAUTH_URL صحيح
+  ...(process.env.NEXTAUTH_URL && {
+    url: process.env.NEXTAUTH_URL
+  }),
+  // تحسينات الأمان
+  useSecureCookies: process.env.NODE_ENV === 'production',
+  debug: process.env.NODE_ENV === 'development',
 }

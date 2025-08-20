@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Github } from 'lucide-react'
+import { OAuthButtons } from '@/components/oauth-buttons'
 
 export default function SignInPage() {
   const [email, setEmail] = useState('')
@@ -94,23 +95,7 @@ export default function SignInPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Button
-              variant="outline"
-              onClick={() => signIn('google')}
-              disabled={isLoading}
-            >
-              Google
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => signIn('github')}
-              disabled={isLoading}
-            >
-              <Github className="mr-2 h-4 w-4" />
-              GitHub
-            </Button>
-          </div>
+          <OAuthButtons isLoading={isLoading} />
 
           <div className="text-center text-sm">
             Don't have an account?{' '}
