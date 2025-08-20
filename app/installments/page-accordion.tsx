@@ -13,16 +13,9 @@ import {
   Search, 
   Filter, 
   DollarSign,
-  CheckCircle,
-  Clock,
-  AlertTriangle,
-  FileText,
-  User,
-  Building2,
   Download,
   Plus,
-  Edit,
-  Trash2
+  Loader2
 } from 'lucide-react'
 
 interface Installment {
@@ -37,16 +30,21 @@ interface Installment {
   status: string
   notes?: string
   createdAt: Date
+  contract?: {
+    unit?: {
+      unitType?: string
+    }
+    installments?: number
+  }
 }
 
-export default function InstallmentsPage() {
+export default function InstallmentsPageAccordion() {
   const [installments, setInstallments] = useState<Installment[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [dateFilter, setDateFilter] = useState('all')
   const [loading, setLoading] = useState(true)
 
-  // جلب الأقساط من قاعدة البيانات عند تحميل الصفحة
   useEffect(() => {
     fetchInstallments()
   }, [])
@@ -76,7 +74,6 @@ export default function InstallmentsPage() {
     }
   }
 
-  // دالة لعرض اسم الوحدة مثل البرنامج الأصلي
   const getUnitDisplayName = (unit: any) => {
     if (!unit) return '—'
     
@@ -89,22 +86,6 @@ export default function InstallmentsPage() {
     return parts.length > 0 ? parts.join(' ') : unit.name || 'وحدة غير محددة'
   }
 
-  const installmentStatuses = [
-    { value: 'all', label: 'جميع الأقساط', color: 'bg-gray-100' },
-    { value: 'مستحق', label: 'مستحق الدفع', color: 'bg-yellow-100 text-yellow-800' },
-    { value: 'مدفوع', label: 'مدفوع', color: 'bg-green-100 text-green-800' },
-    { value: 'متأخر', label: 'متأخر', color: 'bg-red-100 text-red-800' },
-    { value: 'مؤجل', label: 'مؤجل', color: 'bg-blue-100 text-blue-800' }
-  ]
-
-  const dateFilters = [
-    { value: 'all', label: 'جميع التواريخ' },
-    { value: 'today', label: 'اليوم' },
-    { value: 'week', label: 'هذا الأسبوع' },
-    { value: 'month', label: 'هذا الشهر' },
-    { value: 'overdue', label: 'متأخرة' }
-  ]
-
   const handlePayInstallment = async (id: string) => {
     if (!confirm('هل تريد تسديد هذا القسط؟')) return
 
@@ -116,11 +97,7 @@ export default function InstallmentsPage() {
       })
 
       if (response.ok) {
-        setInstallments(installments.map(inst => 
-          inst.id === id 
-            ? { ...inst, status: 'مدفوع', paidDate: new Date() }
-            : inst
-        ))
+        await fetchInstallments() // إعادة جلب البيانات
         alert('تم تسديد القسط بنجاح!')
       } else {
         const error = await response.json()
@@ -132,15 +109,10 @@ export default function InstallmentsPage() {
     }
   }
 
-  const handlePostponeInstallment = (id: string) => {
-    const newDate = prompt('أدخل التاريخ الجديد (YYYY-MM-DD):')
-    if (newDate) {
-      setInstallments(installments.map(inst => 
-        inst.id === id 
-          ? { ...inst, dueDate: new Date(newDate), status: 'مؤجل' }
-          : inst
-      ))
-    }
+  const handleEditInstallment = (id: string) => {
+    // TODO: فتح نموذج تعديل القسط
+    console.log('تعديل القسط:', id)
+    alert('سيتم إضافة نموذج تعديل القسط قريباً')
   }
 
   const filteredInstallments = installments.filter(installment => {
@@ -175,25 +147,39 @@ export default function InstallmentsPage() {
     return matchesSearch && matchesStatus && matchesDate
   })
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'مستحق': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-      case 'مدفوع': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-      case 'متأخر': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-      case 'مؤجل': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
-    }
-  }
+  // تحويل البيانات لتنسيق Accordion
+  const accordionData = filteredInstallments.map(installment => ({
+    id: installment.id,
+    clientName: installment.customerName,
+    unitName: installment.unitName,
+    unitType: installment.contract?.unit?.unitType,
+    partners: [], // سيتم جلبها من API الشركاء لاحقاً
+    amount: installment.amount,
+    dueDate: installment.dueDate,
+    contractCode: installment.contractNumber,
+    status: installment.status === 'مدفوع' ? 'paid' : 
+           new Date(installment.dueDate) < new Date() && installment.status !== 'مدفوع' ? 'overdue' :
+           installment.status === 'مستحق' ? 'unpaid' : 'pending',
+    notes: installment.notes,
+    totalInstallments: installment.contract?.installments,
+    paidDate: installment.paidDate
+  }))
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'مستحق': return <Clock className="h-4 w-4" />
-      case 'مدفوع': return <CheckCircle className="h-4 w-4" />
-      case 'متأخر': return <AlertTriangle className="h-4 w-4" />
-      case 'مؤجل': return <Calendar className="h-4 w-4" />
-      default: return <Clock className="h-4 w-4" />
-    }
-  }
+  const installmentStatuses = [
+    { value: 'all', label: 'جميع الأقساط' },
+    { value: 'مستحق', label: 'مستحق الدفع' },
+    { value: 'مدفوع', label: 'مدفوع' },
+    { value: 'متأخر', label: 'متأخر' },
+    { value: 'مؤجل', label: 'مؤجل' }
+  ]
+
+  const dateFilters = [
+    { value: 'all', label: 'جميع التواريخ' },
+    { value: 'today', label: 'اليوم' },
+    { value: 'week', label: 'هذا الأسبوع' },
+    { value: 'month', label: 'هذا الشهر' },
+    { value: 'overdue', label: 'متأخرة' }
+  ]
 
   const totalInstallments = installments.length
   const paidInstallments = installments.filter(i => i.status === 'مدفوع').length
@@ -206,7 +192,7 @@ export default function InstallmentsPage() {
   const paidAmount = installments.filter(i => i.status === 'مدفوع').reduce((sum, i) => sum + i.amount, 0)
 
   return (
-    <Layout title="إدارة الأقساط" subtitle="متابعة وإدارة جميع أقساط العقود">
+    <Layout title="إدارة الأقساط" subtitle="متابعة وإدارة جميع أقساط العقود مع عرض تفصيلي">
       {/* Stats Cards */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5 mb-8">
         <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
@@ -307,8 +293,30 @@ export default function InstallmentsPage() {
         </CardContent>
       </Card>
 
-      {/* Installments List */}
-      {filteredInstallments.length === 0 ? (
+      {/* Installments Accordion */}
+      {loading ? (
+        <Card>
+          <CardContent className="text-center py-12">
+            <Loader2 className="h-16 w-16 mx-auto mb-4 text-blue-600 animate-spin" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              جاري تحميل الأقساط...
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400">
+              يتم جلب البيانات من قاعدة البيانات
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <InstallmentsAccordion
+          installments={accordionData}
+          onPayInstallment={handlePayInstallment}
+          onEditInstallment={handleEditInstallment}
+          multipleOpen={true}
+        />
+      )}
+
+      {/* رسالة عدم وجود أقساط */}
+      {!loading && filteredInstallments.length === 0 && (
         <Card>
           <CardContent className="text-center py-12">
             <Calendar className="h-16 w-16 mx-auto mb-4 text-gray-400" />
@@ -331,144 +339,6 @@ export default function InstallmentsPage() {
             )}
           </CardContent>
         </Card>
-      ) : (
-        <div className="space-y-4">
-          {filteredInstallments.map((installment) => {
-            const isOverdue = new Date(installment.dueDate) < new Date() && installment.status !== 'مدفوع'
-            
-            return (
-              <Card key={installment.id} className={`hover:shadow-lg transition-shadow ${isOverdue ? 'border-red-200 bg-red-50/50' : ''}`}>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                        installment.status === 'مدفوع' ? 'bg-green-100 dark:bg-green-900' :
-                        isOverdue ? 'bg-red-100 dark:bg-red-900' :
-                        'bg-yellow-100 dark:bg-yellow-900'
-                      }`}>
-                        {getStatusIcon(installment.status)}
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                          قسط رقم: {installment.id}
-                        </h3>
-                        <p className="text-sm text-gray-500">
-                          عقد: {installment.contractNumber}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="text-left">
-                      <div className={`px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1 ${getStatusColor(installment.status)}`}>
-                        {getStatusIcon(installment.status)}
-                        {installment.status}
-                      </div>
-                      {isOverdue && (
-                        <p className="text-xs text-red-600 mt-1">متأخر عن الموعد</p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-4">
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 text-gray-500" />
-                      <div>
-                        <p className="text-sm text-gray-500">العميل</p>
-                        <p className="font-medium">{installment.customerName}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4 text-gray-500" />
-                      <div>
-                        <p className="text-sm text-gray-500">الوحدة</p>
-                        <p className="font-medium">{installment.unitName}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <DollarSign className="h-4 w-4 text-gray-500" />
-                      <div>
-                        <p className="text-sm text-gray-500">مبلغ القسط</p>
-                        <p className="font-medium text-green-600">{installment.amount.toLocaleString('ar-EG')} ج.م</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-gray-500" />
-                      <div>
-                        <p className="text-sm text-gray-500">تاريخ الاستحقاق</p>
-                        <p className={`font-medium ${isOverdue ? 'text-red-600' : ''}`}>
-                          {installment.dueDate.toLocaleDateString('ar-EG')}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {installment.paidDate && (
-                    <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                      <p className="text-sm text-green-700 dark:text-green-300">
-                        <CheckCircle className="inline h-4 w-4 ml-1" />
-                        تم التسديد في: {installment.paidDate.toLocaleDateString('ar-EG')}
-                      </p>
-                    </div>
-                  )}
-
-                  {installment.notes && (
-                    <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                      <p className="text-sm text-gray-700 dark:text-gray-300">
-                        <strong>ملاحظات:</strong> {installment.notes}
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="flex gap-2 pt-4 border-t">
-                    {installment.status !== 'مدفوع' && (
-                      <>
-                        <Button 
-                          onClick={() => handlePayInstallment(installment.id)}
-                          className="bg-green-600 hover:bg-green-700"
-                          size="sm"
-                        >
-                          <CheckCircle className="h-4 w-4 ml-1" />
-                          تسديد
-                        </Button>
-                        <Button 
-                          onClick={() => handlePostponeInstallment(installment.id)}
-                          variant="outline"
-                          size="sm"
-                        >
-                          <Calendar className="h-4 w-4 ml-1" />
-                          تأجيل
-                        </Button>
-                      </>
-                    )}
-                    
-                    <Button variant="outline" size="sm">
-                      <Edit className="h-4 w-4 ml-1" />
-                      تعديل
-                    </Button>
-                    
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={`/contracts`}>
-                        <FileText className="h-4 w-4 ml-1" />
-                        العقد
-                      </Link>
-                    </Button>
-
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50 mr-auto"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
       )}
     </Layout>
   )
