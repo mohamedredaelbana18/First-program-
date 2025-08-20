@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Layout } from '@/components/layout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -16,23 +16,27 @@ import {
   Phone, 
   Mail, 
   MapPin,
-  ArrowLeft
+  ArrowLeft,
+  Loader2
 } from 'lucide-react'
 
 interface Customer {
   id: string
   name: string
-  phone?: string
-  email?: string
-  address?: string
-  notes?: string
+  phone?: string | null
+  email?: string | null
+  address?: string | null
+  notes?: string | null
   createdAt: Date
+  updatedAt: Date
 }
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [showAddForm, setShowAddForm] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
   const [newCustomer, setNewCustomer] = useState({
     name: '',
     phone: '',
@@ -41,27 +45,82 @@ export default function CustomersPage() {
     notes: ''
   })
 
-  const handleAddCustomer = () => {
-    if (!newCustomer.name.trim()) return
+  // جلب العملاء من قاعدة البيانات عند تحميل الصفحة
+  useEffect(() => {
+    fetchCustomers()
+  }, [])
 
-    const customer: Customer = {
-      id: `C-${Date.now()}`,
-      name: newCustomer.name,
-      phone: newCustomer.phone || undefined,
-      email: newCustomer.email || undefined,
-      address: newCustomer.address || undefined,
-      notes: newCustomer.notes || undefined,
-      createdAt: new Date()
+  const fetchCustomers = async () => {
+    setLoading(true)
+    try {
+      const response = await fetch('/api/customers')
+      if (response.ok) {
+        const data = await response.json()
+        setCustomers(data.map((customer: any) => ({
+          ...customer,
+          createdAt: new Date(customer.createdAt),
+          updatedAt: new Date(customer.updatedAt)
+        })))
+      } else {
+        console.error('فشل في جلب العملاء')
+      }
+    } catch (error) {
+      console.error('خطأ في جلب العملاء:', error)
+    } finally {
+      setLoading(false)
     }
-
-    setCustomers([...customers, customer])
-    setNewCustomer({ name: '', phone: '', email: '', address: '', notes: '' })
-    setShowAddForm(false)
   }
 
-  const handleDeleteCustomer = (id: string) => {
-    if (confirm('هل أنت متأكد من حذف هذا العميل؟')) {
-      setCustomers(customers.filter(c => c.id !== id))
+  const handleAddCustomer = async () => {
+    if (!newCustomer.name.trim()) return
+
+    setSubmitting(true)
+    try {
+      const response = await fetch('/api/customers', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newCustomer),
+      })
+
+      if (response.ok) {
+        const customer = await response.json()
+        setCustomers([{
+          ...customer,
+          createdAt: new Date(customer.createdAt),
+          updatedAt: new Date(customer.updatedAt)
+        }, ...customers])
+        setNewCustomer({ name: '', phone: '', email: '', address: '', notes: '' })
+        setShowAddForm(false)
+      } else {
+        const error = await response.json()
+        alert(error.error || 'فشل في إضافة العميل')
+      }
+    } catch (error) {
+      console.error('خطأ في إضافة العميل:', error)
+      alert('فشل في إضافة العميل')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleDeleteCustomer = async (id: string) => {
+    if (!confirm('هل أنت متأكد من حذف هذا العميل؟')) return
+
+    try {
+      const response = await fetch(`/api/customers/${id}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        setCustomers(customers.filter(c => c.id !== id))
+      } else {
+        alert('فشل في حذف العميل')
+      }
+    } catch (error) {
+      console.error('خطأ في حذف العميل:', error)
+      alert('فشل في حذف العميل')
     }
   }
 
@@ -106,97 +165,126 @@ export default function CustomersPage() {
         </div>
       </div>
 
-        {/* Add Customer Form */}
-        {showAddForm && (
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle>إضافة عميل جديد</CardTitle>
-              <CardDescription>
-                أدخل بيانات العميل الجديد
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="name">اسم العميل *</Label>
-                  <Input
-                    id="name"
-                    value={newCustomer.name}
-                    onChange={(e) => setNewCustomer({...newCustomer, name: e.target.value})}
-                    placeholder="أدخل اسم العميل"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="phone">رقم الهاتف</Label>
-                  <Input
-                    id="phone"
-                    value={newCustomer.phone}
-                    onChange={(e) => setNewCustomer({...newCustomer, phone: e.target.value})}
-                    placeholder="أدخل رقم الهاتف"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="email">البريد الإلكتروني</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={newCustomer.email}
-                    onChange={(e) => setNewCustomer({...newCustomer, email: e.target.value})}
-                    placeholder="أدخل البريد الإلكتروني"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="address">العنوان</Label>
-                  <Input
-                    id="address"
-                    value={newCustomer.address}
-                    onChange={(e) => setNewCustomer({...newCustomer, address: e.target.value})}
-                    placeholder="أدخل العنوان"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <Label htmlFor="notes">ملاحظات</Label>
-                  <Input
-                    id="notes"
-                    value={newCustomer.notes}
-                    onChange={(e) => setNewCustomer({...newCustomer, notes: e.target.value})}
-                    placeholder="أدخل أي ملاحظات إضافية"
-                  />
-                </div>
+      {/* Add Customer Form */}
+      {showAddForm && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>إضافة عميل جديد</CardTitle>
+            <CardDescription>
+              أدخل بيانات العميل الجديد - سيتم حفظها في قاعدة البيانات
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <Label htmlFor="name">اسم العميل *</Label>
+                <Input
+                  id="name"
+                  value={newCustomer.name}
+                  onChange={(e) => setNewCustomer({...newCustomer, name: e.target.value})}
+                  placeholder="أدخل اسم العميل"
+                  disabled={submitting}
+                  required
+                />
               </div>
-              <div className="flex gap-2 mt-4">
-                <Button onClick={handleAddCustomer} className="bg-green-600 hover:bg-green-700">
+              <div>
+                <Label htmlFor="phone">رقم الهاتف</Label>
+                <Input
+                  id="phone"
+                  value={newCustomer.phone}
+                  onChange={(e) => setNewCustomer({...newCustomer, phone: e.target.value})}
+                  placeholder="أدخل رقم الهاتف"
+                  disabled={submitting}
+                />
+              </div>
+              <div>
+                <Label htmlFor="email">البريد الإلكتروني</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={newCustomer.email}
+                  onChange={(e) => setNewCustomer({...newCustomer, email: e.target.value})}
+                  placeholder="أدخل البريد الإلكتروني"
+                  disabled={submitting}
+                />
+              </div>
+              <div>
+                <Label htmlFor="address">العنوان</Label>
+                <Input
+                  id="address"
+                  value={newCustomer.address}
+                  onChange={(e) => setNewCustomer({...newCustomer, address: e.target.value})}
+                  placeholder="أدخل العنوان"
+                  disabled={submitting}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <Label htmlFor="notes">ملاحظات</Label>
+                <Input
+                  id="notes"
+                  value={newCustomer.notes}
+                  onChange={(e) => setNewCustomer({...newCustomer, notes: e.target.value})}
+                  placeholder="أدخل أي ملاحظات إضافية"
+                  disabled={submitting}
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <Button 
+                onClick={handleAddCustomer} 
+                className="bg-green-600 hover:bg-green-700"
+                disabled={submitting || !newCustomer.name.trim()}
+              >
+                {submitting ? (
+                  <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                ) : (
                   <Plus className="h-4 w-4 ml-2" />
-                  إضافة العميل
-                </Button>
-                <Button variant="outline" onClick={() => setShowAddForm(false)}>
-                  إلغاء
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                )}
+                {submitting ? 'جاري الحفظ...' : 'إضافة العميل'}
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => setShowAddForm(false)}
+                disabled={submitting}
+              >
+                إلغاء
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-        {/* Customers List */}
-        {filteredCustomers.length === 0 ? (
-          <Card>
-            <CardContent className="text-center py-12">
-              <Users className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                لا يوجد عملاء
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
-                {searchTerm ? 'لم يتم العثور على عملاء يطابقون البحث' : 'ابدأ بإضافة عميل جديد'}
-              </p>
-              {!searchTerm && (
-                <Button onClick={() => setShowAddForm(true)} className="bg-green-600 hover:bg-green-700">
-                  <Plus className="h-4 w-4 ml-2" />
-                  إضافة أول عميل
-                </Button>
-              )}
-            </CardContent>
-          </Card>
+      {/* Customers List */}
+      {loading ? (
+        <Card>
+          <CardContent className="text-center py-12">
+            <Loader2 className="h-16 w-16 mx-auto mb-4 text-blue-600 animate-spin" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              جاري تحميل العملاء...
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400">
+              يتم جلب البيانات من قاعدة البيانات
+            </p>
+          </CardContent>
+        </Card>
+      ) : filteredCustomers.length === 0 ? (
+        <Card>
+          <CardContent className="text-center py-12">
+            <Users className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              {searchTerm ? 'لم يتم العثور على عملاء' : 'لا يوجد عملاء في قاعدة البيانات'}
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              {searchTerm ? 'جرب مصطلح بحث مختلف' : 'ابدأ بإضافة عميل جديد'}
+            </p>
+            {!searchTerm && (
+              <Button onClick={() => setShowAddForm(true)} className="bg-green-600 hover:bg-green-700">
+                <Plus className="h-4 w-4 ml-2" />
+                إضافة أول عميل
+              </Button>
+            )}
+          </CardContent>
+        </Card>
         ) : (
           <div className="grid gap-4">
             {filteredCustomers.map((customer) => (
