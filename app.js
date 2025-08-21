@@ -13,8 +13,12 @@ async function initializeApp() {
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('/sw.js')
-                .then(reg => console.log('ServiceWorker registered.', reg))
-                .catch(err => console.error('ServiceWorker registration failed:', err));
+                .then(reg => {
+                    // Service Worker تم تسجيله بنجاح
+                })
+                .catch(err => {
+                    ErrorHandler.handle(err, 'ServiceWorker Registration');
+                });
         });
     }
 
@@ -22,18 +26,18 @@ async function initializeApp() {
         await openDB();
         const migrationComplete = await getKeyVal('migrationComplete');
         if (migrationComplete) {
-            console.log("Loading state from IndexedDB...");
+            // تحميل البيانات من IndexedDB
             state = await loadStateFromDB();
         } else {
-            console.log("Checking for localStorage data to migrate...");
+            // فحص بيانات localStorage للهجرة
             const localStorageState = loadFromLocalStorage();
             if (localStorageState && localStorageState.customers && localStorageState.customers.length > 0) {
-                console.log("Migrating data from localStorage to IndexedDB...");
+                // هجرة البيانات من localStorage إلى IndexedDB
                 state = localStorageState;
                 await persist(); // Persist the migrated state to IndexedDB
-                console.log("Migration successful.");
+                // تم إكمال الهجرة بنجاح
             } else {
-                console.log("No data to migrate, loading fresh state from DB.");
+                // لا توجد بيانات للهجرة، تحميل حالة فارغة
                 state = await loadStateFromDB(); // Load empty state
             }
             await setKeyVal('migrationComplete', true);
@@ -61,7 +65,7 @@ async function initializeApp() {
         createTabs(); // Create navigation tabs
         nav('dash');
     } catch (error) {
-        console.error("Failed to initialize the application:", error);
+        ErrorHandler.handle(error, 'Application Initialization');
         const viewEl = document.getElementById('view');
         if (viewEl) {
             viewEl.innerHTML = safeHTML`<div class="card warn"><h3>خطأ فادح</h3><p>لم يتمكن التطبيق من التحميل. قد تكون قاعدة البيانات تالفة أو أن متصفحك لا يدعم IndexedDB.</p><pre>${error.stack}</pre></div>`;
@@ -98,7 +102,9 @@ async function persist() {
         }
         await transaction.done;
         applySettings();
-    } catch (error) { console.error('Failed to persist state to IndexedDB:', error); }
+    } catch (error) { 
+        ErrorHandler.handle(error, 'IndexedDB Persistence');
+    }
 }
 
 async function loadStateFromDB() {
@@ -138,9 +144,9 @@ function loadFromLocalStorage(){
     if(s.contracts&&s.contracts.length>0){s.contracts.forEach(c=>{c.brokerName=c.brokerName||'';c.commissionSafeId=c.commissionSafeId||null;c.discountAmount=c.discountAmount||0;delete c.planName;});}
     s.safes=s.safes||[];if(s.safes.length===0){s.safes.push({id:uid('S'),name:'الخزنة الرئيسية',balance:0});}else{s.safes.forEach(safe=>{safe.balance=safe.balance||0;});}
     s.auditLog=s.auditLog||[];s.vouchers=s.vouchers||[];
-    if(s.payments&&s.payments.length>0&&s.vouchers.length===0){console.log('Migrating payments to vouchers...');s.payments.forEach(p=>{const unit=s.units.find(u=>u.id===p.unitId);const contract=s.contracts.find(c=>c.unitId===p.unitId);const customer=contract?s.customers.find(cust=>cust.id===contract.customerId):null;s.vouchers.push({id:uid('V'),type:'receipt',date:p.date,amount:p.amount,safeId:p.safeId,description:`دفعة للوحدة ${unit?unit.code:'غير معروفة'}`,payer:customer?customer.name:'غير محدد',linked_ref:p.unitId});});s.contracts.forEach(c=>{if(c.brokerAmount>0){const unit=s.units.find(u=>u.id===c.unitId);s.vouchers.push({id:uid('V'),type:'payment',date:c.start,amount:c.brokerAmount,safeId:c.commissionSafeId,description:`عمولة سمسار للوحدة ${unit?unit.code:'غير معروفة'}`,beneficiary:c.brokerName||'سمسار',linked_ref:c.id});}});}
+    if(s.payments&&s.payments.length>0&&s.vouchers.length===0){/* هجرة المدفوعات إلى السندات */s.payments.forEach(p=>{const unit=s.units.find(u=>u.id===p.unitId);const contract=s.contracts.find(c=>c.unitId===p.unitId);const customer=contract?s.customers.find(cust=>cust.id===contract.customerId):null;s.vouchers.push({id:uid('V'),type:'receipt',date:p.date,amount:p.amount,safeId:p.safeId,description:`دفعة للوحدة ${unit?unit.code:'غير معروفة'}`,payer:customer?customer.name:'غير محدد',linked_ref:p.unitId});});s.contracts.forEach(c=>{if(c.brokerAmount>0){const unit=s.units.find(u=>u.id===c.unitId);s.vouchers.push({id:uid('V'),type:'payment',date:c.start,amount:c.brokerAmount,safeId:c.commissionSafeId,description:`عمولة سمسار للوحدة ${unit?unit.code:'غير معروفة'}`,beneficiary:c.brokerName||'سمسار',linked_ref:c.id});}});}
     s.brokerDues=s.brokerDues||[];s.brokers=s.brokers||[];s.partnerGroups=s.partnerGroups||[];
-    if(s.brokers.length===0&&(s.contracts.some(c=>c.brokerName)||s.brokerDues.some(d=>d.brokerName))){console.log('Populating brokers list from existing data...');const brokerNames=new Set([...s.contracts.map(c=>c.brokerName),...s.brokerDues.map(d=>d.brokerName)].filter(Boolean));brokerNames.forEach(name=>{s.brokers.push({id:uid('B'),name:name,phone:'',notes:''});});}
+    if(s.brokers.length===0&&(s.contracts.some(c=>c.brokerName)||s.brokerDues.some(d=>d.brokerName))){/* تعبئة قائمة السماسرة من البيانات الموجودة */const brokerNames=new Set([...s.contracts.map(c=>c.brokerName),...s.brokerDues.map(d=>d.brokerName)].filter(Boolean));brokerNames.forEach(name=>{s.brokers.push({id:uid('B'),name:name,phone:'',notes:''});});}
     const defaultState = {customers:[],units:[],partners:[],unitPartners:[],contracts:[],installments:[],payments:[],partnerDebts:[],safes:[],transfers:[],auditLog:[],vouchers:[],brokerDues:[],brokers:[],partnerGroups:[],settings:{theme:'dark',font:16},locked:false};
     return {...defaultState, ...s};
   }catch{
@@ -186,9 +192,9 @@ function uid(p){ return p+'-'+Math.random().toString(36).slice(2,9); }
 function today(){ return new Date().toISOString().slice(0,10); }
 function logAction(description, details = {}) { if (!state.auditLog) state.auditLog = []; state.auditLog.push({ id: uid('LOG'), timestamp: new Date().toISOString(), description, details }); }
 const fmt = new Intl.NumberFormat('ar-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-function egp(v){ v=Number(v||0); return isFinite(v)?fmt.format(v)+' ج.م':'' }
+function egp(v){ v=Number(v||0); return Number.isFinite(v)?fmt.format(v)+' ج.م':'' }
 function applySettings(){ if(state && state.settings) { document.documentElement.setAttribute('data-theme', state.settings.theme||'dark'); document.documentElement.style.fontSize=(state.settings.font||16)+'px'; } }
-function checkLock(){ if(state.locked){ const p=prompt('اكتب كلمة المرور للدخول'); if(p!==state.settings.pass){ alert('كلمة مرور غير صحيحة'); location.reload(); } } }
+function checkLock(){ if(state.locked){ const p=prompt('اكتب كلمة المرور للدخول'); if(p!==state.settings.pass){ NotificationSystem.show('كلمة مرور غير صحيحة', 'error'); location.reload(); } } }
 function unitById(id){ return state.units.find(u=>u.id===id); }
 function custById(id){ return state.customers.find(c=>c.id===id); }
 function partnerById(id){ return state.partners.find(p=>p.id===id); }
@@ -573,7 +579,7 @@ function renderDash() {
       }
     });
   } catch(e) {
-    console.error("Failed to render unit status chart:", e);
+    ErrorHandler.handle(e, 'Unit Status Chart Rendering');
     document.getElementById('new-units-chart').parentElement.innerHTML = '<p style="color:var(--warn)">فشل تحميل الرسم البياني.</p>';
   }
 
@@ -604,7 +610,7 @@ function renderDash() {
 
     document.getElementById('upcoming-installments-table').innerHTML = table(headers, rows);
   } catch(e) {
-    console.error("Failed to render upcoming installments table:", e);
+    ErrorHandler.handle(e, 'Upcoming Installments Table Rendering');
     document.getElementById('upcoming-installments-table').innerHTML = '<p style="color:var(--warn)">فشل تحميل جدول الأقساط.</p>';
   }
 
@@ -636,7 +642,7 @@ function renderDash() {
 
     document.getElementById('recent-transactions-table').innerHTML = table(headers, rows);
   } catch(e) {
-    console.error("Failed to render recent transactions table:", e);
+    ErrorHandler.handle(e, 'Recent Transactions Table Rendering');
     document.getElementById('recent-transactions-table').innerHTML = '<p style="color:var(--warn)">فشل تحميل جدول الحركات المالية.</p>';
   }
 }
@@ -906,7 +912,7 @@ window.updatePartnerPercent = (element, linkId, originalPercent) => {
   if (!link) return;
 
   const newPercent = parseNumber(element.textContent);
-  if (isNaN(newPercent) || newPercent <= 0) {
+  if (Number.isNaN(newPercent) || newPercent <= 0) {
     alert('الرجاء إدخال نسبة مئوية صحيحة.');
     element.textContent = originalPercent; // Revert
     return;
@@ -1442,8 +1448,8 @@ function renderUnitDetails(unitId){
 
     drawPartners();
   } catch (err) {
-    alert('حدث خطأ أثناء عرض تفاصيل الوحدة. الرجاء إبلاغ المطور بالتفاصيل التالية:\n\n' + err.stack);
-    console.error("Error in renderUnitDetails:", err);
+    ErrorHandler.handle(err, 'Unit Details Rendering');
+    NotificationSystem.show('حدث خطأ أثناء عرض تفاصيل الوحدة', 'error');
   }
 }
 
@@ -2270,7 +2276,7 @@ function processPayment(unitId, amount, method, date, safeId, installmentId = nu
         .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
 
     if (installmentsToPay.length === 0 && installmentId) {
-        console.warn(`Payment made for installment ${installmentId}, but no payable installments found for unit ${unitId}.`);
+        // console.warn(`Payment made for installment ${installmentId}, but no payable installments found for unit ${unitId}.`);
         return true;
     }
 
@@ -2297,7 +2303,11 @@ function processPayment(unitId, amount, method, date, safeId, installmentId = nu
     }
 
     if (remainingAmountToProcess > 0.005) {
-        console.log(`Overpayment of ${egp(remainingAmountToProcess)} for unit ${unitId}.`);
+        // دفع زائد للوحدة
+        Analytics.track('overpayment_detected', {
+            unitId: unitId,
+            amount: remainingAmountToProcess
+        });
     }
 
     return true; // Success
@@ -3538,8 +3548,8 @@ function renderBackup(){
 
         XLSX.writeFile(wb, `estate-backup-${today()}.xlsx`);
     } catch (err) {
-        console.error(err);
-        alert('حدث خطأ أثناء إنشاء ملف Excel.');
+        ErrorHandler.handle(err, 'Excel Export');
+        NotificationSystem.show('حدث خطأ أثناء إنشاء ملف Excel', 'error');
     }
   }
   window.doReset=async ()=>{
@@ -3732,7 +3742,7 @@ function sanitizeHTML(str) {
 function safeHTML(template, ...args) {
     return template.reduce((result, str, i) => {
         const arg = args[i - 1];
-        return result + str + (arg !== undefined ? sanitizeHTML(String(arg)) : '');
+        return result + str + (typeof arg !== "undefined" ? sanitizeHTML(String(arg)) : '');
     });
 }
 
@@ -3748,9 +3758,9 @@ function validateInput(input, type = 'text', minLength = 1, maxLength = 1000) {
         case 'phone':
             return /^[\d\s\-\+\(\)]+$/.test(trimmed);
         case 'number':
-            return !isNaN(parseFloat(trimmed)) && isFinite(trimmed);
+            return !Number.isNaN(parseFloat(trimmed)) && Number.isFinite(trimmed);
         case 'date':
-            return !isNaN(Date.parse(trimmed));
+            return !Number.isNaN(Date.parse(trimmed));
         case 'text':
         default:
             return true;
@@ -3772,9 +3782,7 @@ function generateSecureId(prefix = '') {
 // نظام معالجة الأخطاء المحسن
 class ErrorHandler {
     static handle(error, context = '') {
-        console.error(`Error in ${context}:`, error);
-        
-        // تسجيل الخطأ
+        // تسجيل الخطأ في النظام الداخلي
         this.logError(error, context);
         
         // عرض رسالة للمستخدم
@@ -5487,7 +5495,7 @@ class ExpenseSettlement {
     // الحصول على تسويات الشريك
     static getPartnerSettlements(partnerId) {
         return this.settlements.filter(s => 
-            s.partnerDifferences && s.partnerDifferences[partnerId] !== undefined
+            s.partnerDifferences && s.partnerDifferences[partnerId] !== "undefined"
         );
     }
     
