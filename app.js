@@ -5,6 +5,118 @@ let historyIndex = -1;
 let currentView = 'dash';
 let currentParam = null;
 
+/* ===== NOTIFICATION SYSTEM ===== */
+class NotificationSystem {
+    constructor() {
+        this.notifications = [];
+        this.createNotificationContainer();
+    }
+
+    createNotificationContainer() {
+        const container = document.createElement('div');
+        container.id = 'notification-container';
+        container.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            max-width: 400px;
+        `;
+        document.body.appendChild(container);
+    }
+
+    show(message, type = 'info', duration = 5000) {
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.style.cssText = `
+            background: ${this.getBackgroundColor(type)};
+            color: white;
+            padding: 15px 20px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            cursor: pointer;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 14px;
+            line-height: 1.4;
+        `;
+        
+        notification.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span>${message}</span>
+                <button onclick="this.parentElement.parentElement.remove()" 
+                        style="background: none; border: none; color: white; font-size: 18px; cursor: pointer; margin-left: 10px;">
+                    ×
+                </button>
+            </div>
+        `;
+
+        const container = document.getElementById('notification-container');
+        container.appendChild(notification);
+
+        // Animate in
+        setTimeout(() => {
+            notification.style.transform = 'translateX(0)';
+        }, 100);
+
+        // Auto remove
+        if (duration > 0) {
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.style.transform = 'translateX(100%)';
+                    setTimeout(() => notification.remove(), 300);
+                }
+            }, duration);
+        }
+
+        // Click to dismiss
+        notification.addEventListener('click', (e) => {
+            if (e.target.tagName !== 'BUTTON') {
+                notification.style.transform = 'translateX(100%)';
+                setTimeout(() => notification.remove(), 300);
+            }
+        });
+
+        return notification;
+    }
+
+    getBackgroundColor(type) {
+        switch (type) {
+            case 'success': return '#28a745';
+            case 'error': return '#dc3545';
+            case 'warning': return '#ffc107';
+            case 'info': 
+            default: return '#17a2b8';
+        }
+    }
+
+    success(message, duration = 5000) {
+        return this.show(message, 'success', duration);
+    }
+
+    error(message, duration = 8000) {
+        return this.show(message, 'error', duration);
+    }
+
+    warning(message, duration = 6000) {
+        return this.show(message, 'warning', duration);
+    }
+
+    info(message, duration = 5000) {
+        return this.show(message, 'info', duration);
+    }
+}
+
+// Global notification instance
+const notifications = new NotificationSystem();
+
+// Replace all alert() calls with notifications
+function showAlert(message, type = 'info') {
+    notifications.show(message, type);
+}
+
 /* ===== CORE APP INITIALIZATION ===== */
 document.addEventListener('DOMContentLoaded', initializeApp);
 
@@ -166,7 +278,7 @@ function setupGlobalEventListeners() {
         state.locked = !!pass;
         state.settings.pass = pass || null;
         await persist();
-        alert(state.locked ? 'تم تفعيل القفل' : 'تم إلغاء القفل');
+        notifications.success(state.locked ? 'تم تفعيل القفل' : 'تم إلغاء القفل');
         checkLock();
     });
     document.getElementById('undoBtn').addEventListener('click', undo);
@@ -189,7 +301,7 @@ function logAction(description, details = {}) { if (!state.auditLog) state.audit
 const fmt = new Intl.NumberFormat('ar-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 function egp(v){ v=Number(v||0); return isFinite(v)?fmt.format(v)+' ج.م':'' }
 function applySettings(){ if(state && state.settings) { document.documentElement.setAttribute('data-theme', state.settings.theme||'dark'); document.documentElement.style.fontSize=(state.settings.font||16)+'px'; } }
-function checkLock(){ if(state.locked){ const p=prompt('اكتب كلمة المرور للدخول'); if(p!==state.settings.pass){ alert('كلمة مرور غير صحيحة'); location.reload(); } } }
+function checkLock(){ if(state.locked){ const p=prompt('اكتب كلمة المرور للدخول'); if(p!==state.settings.pass){ notifications.error('كلمة مرور غير صحيحة'); location.reload(); } } }
 function unitById(id){ return state.units.find(u=>u.id===id); }
 function custById(id){ return state.customers.find(c=>c.id===id); }
 function partnerById(id){ return state.partners.find(p=>p.id===id); }
@@ -265,7 +377,7 @@ function showModal(title, content, onSave) {
 
 function table(headers, rows, sortKey=null, onSort=null){ const head = headers.map((h,i)=>`<th data-idx="${i}">${h}${sortKey&&sortKey.idx===i?(sortKey.dir==='asc'?' ▲':' ▼'):''}</th>`).join(''); const body = rows.length? rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${headers.length}"><small>لا توجد بيانات</small></td></tr>`; const html = `<table class="table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`; const wrap=document.createElement('div'); wrap.innerHTML=html; if(onSort){ wrap.querySelectorAll('th').forEach(th=> th.addEventListener('click', ()=>{ const idx=Number(th.dataset.idx); const dir = sortKey && sortKey.idx===idx && sortKey.dir==='asc' ? 'desc' : 'asc'; onSort({idx,dir}); })); } return wrap.innerHTML; }
 
-function printHTML(title, bodyHTML){ const w=window.open('','_blank'); if(!w) return alert('الرجاء السماح بالنوافذ المنبثقة لطباعة التقارير.'); w.document.write(`<html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${title}</title><style>@page{size:A4;margin:12mm}body{font-family:system-ui,Segoe UI,Roboto; padding:0; margin:0; direction:rtl; color:#111}.wrap{padding:16px 18px}h1{font-size:20px;margin:0 0 12px 0}table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid #ccc;padding:6px 8px;text-align:right;vertical-align:top}thead th{background:#f1f5f9}footer{margin-top:12px;font-size:11px;color:#555}</style></head><body><div class="wrap">${bodyHTML}<footer>تمت الطباعة في ${new Date().toLocaleString('ar-EG')}</footer></div></body></html>`); w.document.close(); setTimeout(() => { w.focus(); w.print(); }, 250); }
+function printHTML(title, bodyHTML){ const w=window.open('','_blank');         if(!w) return notifications.error('الرجاء السماح بالنوافذ المنبثقة لطباعة التقارير.'); w.document.write(`<html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${title}</title><style>@page{size:A4;margin:12mm}body{font-family:system-ui,Segoe UI,Roboto; padding:0; margin:0; direction:rtl; color:#111}.wrap{padding:16px 18px}h1{font-size:20px;margin:0 0 12px 0}table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid #ccc;padding:6px 8px;text-align:right;vertical-align:top}thead th{background:#f1f5f9}footer{margin-top:12px;font-size:11px;color:#555}</style></head><body><div class="wrap">${bodyHTML}<footer>تمت الطباعة في ${new Date().toLocaleString('ar-EG')}</footer></div></body></html>`); w.document.close(); setTimeout(() => { w.focus(); w.print(); }, 250); }
 
 // =================================================================================
 // ===== ORIGINAL RENDER FUNCTIONS AND HELPERS FROM THIS POINT FORWARD =====
@@ -3011,12 +3123,88 @@ function renderReportFilterScreen(reportId) {
     return;
   }
 
+  // Generate filter form based on report type
+  let filterForm = '';
+  switch (reportId) {
+    case 'payments_monthly':
+      filterForm = `
+        <div class="form-group">
+          <label>من تاريخ:</label>
+          <input type="date" id="start-date" value="${new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0,10)}">
+        </div>
+        <div class="form-group">
+          <label>إلى تاريخ:</label>
+          <input type="date" id="end-date" value="${new Date().toISOString().slice(0,10)}">
+        </div>
+      `;
+      break;
+    case 'cashflow':
+      filterForm = `
+        <div class="form-group">
+          <label>من تاريخ:</label>
+          <input type="date" id="start-date" value="${new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0,10)}">
+        </div>
+        <div class="form-group">
+          <label>إلى تاريخ:</label>
+          <input type="date" id="end-date" value="${new Date().toISOString().slice(0,10)}">
+        </div>
+        <div class="form-group">
+          <label>الخزنة:</label>
+          <select id="safe-filter">
+            <option value="">جميع الخزن</option>
+            ${state.safes.map(safe => `<option value="${safe.id}">${safe.name}</option>`).join('')}
+          </select>
+        </div>
+      `;
+      break;
+    case 'inst_due':
+    case 'inst_overdue':
+      filterForm = `
+        <div class="form-group">
+          <label>من تاريخ:</label>
+          <input type="date" id="start-date" value="${new Date().toISOString().slice(0,10)}">
+        </div>
+        <div class="form-group">
+          <label>إلى تاريخ:</label>
+          <input type="date" id="end-date" value="${new Date(new Date().getFullYear() + 1, 11, 31).toISOString().slice(0,10)}">
+        </div>
+        <div class="form-group">
+          <label>العميل:</label>
+          <select id="customer-filter">
+            <option value="">جميع العملاء</option>
+            ${state.customers.map(customer => `<option value="${customer.id}">${customer.name}</option>`).join('')}
+          </select>
+        </div>
+      `;
+      break;
+    default:
+      filterForm = `
+        <div class="form-group">
+          <label>من تاريخ:</label>
+          <input type="date" id="start-date" value="${new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0,10)}">
+        </div>
+        <div class="form-group">
+          <label>إلى تاريخ:</label>
+          <input type="date" id="end-date" value="${new Date().toISOString().slice(0,10)}">
+        </div>
+      `;
+  }
+
   view.innerHTML = `
     <div class="card">
         <div class="header">
             <h3>فلترة تقرير: ${report.title}</h3>
             <button class="btn secondary" onclick="nav('reports')">⬅️ العودة</button>
         </div>
+        <div class="report-filters">
+          ${filterForm}
+          <div class="form-actions">
+            <button class="btn" onclick="generateReport('${reportId}')">توليد التقرير</button>
+            <button class="btn secondary" onclick="nav('reports')">إلغاء</button>
+          </div>
+        </div>
+    </div>
+  `;
         <div id="rep-filters-container" class="grid grid-4" style="gap:8px; align-items: end; margin: 16px 0;">
             <!-- Filters will be dynamically inserted here -->
         </div>
@@ -3050,7 +3238,255 @@ function renderReportFilterScreen(reportId) {
   }
 
   // Attach listener to the generate button
-  document.getElementById('generate-report-btn').onclick = () => {
+  function generateReport(reportId) {
+  const startDate = document.getElementById('start-date')?.value;
+  const endDate = document.getElementById('end-date')?.value;
+  const safeFilter = document.getElementById('safe-filter')?.value;
+  const customerFilter = document.getElementById('customer-filter')?.value;
+
+  if (!startDate || !endDate) {
+    notifications.error('الرجاء إدخال تاريخ البداية والنهاية');
+    return;
+  }
+
+  let reportData = null;
+  let reportTitle = '';
+
+  switch (reportId) {
+    case 'payments_monthly':
+      reportData = generatePaymentsMonthlyReport(startDate, endDate);
+      reportTitle = 'تقرير المدفوعات الشهرية';
+      break;
+    case 'cashflow':
+      reportData = generateCashflowReport(startDate, endDate, safeFilter);
+      reportTitle = 'تقرير التدفقات النقدية';
+      break;
+    case 'inst_due':
+      reportData = generateInstallmentsDueReport(startDate, endDate, customerFilter);
+      reportTitle = 'تقرير الأقساط المستحقة';
+      break;
+    case 'inst_overdue':
+      reportData = generateInstallmentsOverdueReport(startDate, endDate, customerFilter);
+      reportTitle = 'تقرير الأقساط المتأخرة';
+      break;
+    case 'units_status':
+      reportData = generateUnitsStatusReport();
+      reportTitle = 'تقرير حالة الوحدات';
+      break;
+    case 'cust_activity':
+      reportData = generateCustomerActivityReport();
+      reportTitle = 'تقرير نشاط العملاء';
+      break;
+    default:
+      notifications.error('نوع التقرير غير معروف');
+      return;
+  }
+
+  if (reportData) {
+    displayReport(reportTitle, reportData, reportId);
+    notifications.success('تم توليد التقرير بنجاح');
+  } else {
+    notifications.error('فشل في توليد التقرير');
+  }
+}
+
+function generatePaymentsMonthlyReport(startDate, endDate) {
+  const payments = state.vouchers.filter(v => 
+    v.type === 'receipt' && 
+    v.date >= startDate && 
+    v.date <= endDate
+  );
+
+  const monthlyData = {};
+  payments.forEach(payment => {
+    const month = payment.date.substring(0, 7); // YYYY-MM
+    if (!monthlyData[month]) {
+      monthlyData[month] = { total: 0, count: 0 };
+    }
+    monthlyData[month].total += payment.amount;
+    monthlyData[month].count++;
+  });
+
+  return {
+    type: 'table',
+    headers: ['الشهر', 'عدد المدفوعات', 'إجمالي المدفوعات'],
+    data: Object.entries(monthlyData).map(([month, data]) => [
+      month,
+      data.count,
+      egp(data.total)
+    ])
+  };
+}
+
+function generateCashflowReport(startDate, endDate, safeFilter) {
+  const transactions = state.vouchers.filter(v => 
+    v.date >= startDate && 
+    v.date <= endDate &&
+    (!safeFilter || v.safeId === safeFilter)
+  );
+
+  const income = transactions.filter(t => t.type === 'receipt').reduce((sum, t) => sum + t.amount, 0);
+  const expenses = transactions.filter(t => t.type === 'payment').reduce((sum, t) => sum + t.amount, 0);
+  const net = income - expenses;
+
+  return {
+    type: 'summary',
+    data: {
+      income: egp(income),
+      expenses: egp(expenses),
+      net: egp(net),
+      transactions: transactions.length
+    }
+  };
+}
+
+function generateInstallmentsDueReport(startDate, endDate, customerFilter) {
+  const installments = state.installments.filter(i => 
+    i.dueDate >= startDate && 
+    i.dueDate <= endDate &&
+    i.status !== 'مدفوع' &&
+    (!customerFilter || i.customerId === customerFilter)
+  );
+
+  return {
+    type: 'table',
+    headers: ['العميل', 'الوحدة', 'تاريخ الاستحقاق', 'المبلغ'],
+    data: installments.map(i => {
+      const customer = state.customers.find(c => c.id === i.customerId);
+      const contract = state.contracts.find(c => c.id === i.contractId);
+      const unit = contract ? state.units.find(u => u.id === contract.unitId) : null;
+      
+      return [
+        customer?.name || 'غير محدد',
+        unit?.name || 'غير محدد',
+        i.dueDate,
+        egp(i.amount)
+      ];
+    })
+  };
+}
+
+function generateInstallmentsOverdueReport(startDate, endDate, customerFilter) {
+  const today = new Date().toISOString().slice(0, 10);
+  const installments = state.installments.filter(i => 
+    i.dueDate < today &&
+    i.status !== 'مدفوع' &&
+    (!customerFilter || i.customerId === customerFilter)
+  );
+
+  return {
+    type: 'table',
+    headers: ['العميل', 'الوحدة', 'تاريخ الاستحقاق', 'المبلغ', 'أيام التأخير'],
+    data: installments.map(i => {
+      const customer = state.customers.find(c => c.id === i.customerId);
+      const contract = state.contracts.find(c => c.id === i.contractId);
+      const unit = contract ? state.units.find(u => u.id === contract.unitId) : null;
+      const daysOverdue = Math.floor((new Date() - new Date(i.dueDate)) / (1000 * 60 * 60 * 24));
+      
+      return [
+        customer?.name || 'غير محدد',
+        unit?.name || 'غير محدد',
+        i.dueDate,
+        egp(i.amount),
+        daysOverdue
+      ];
+    })
+  };
+}
+
+function generateUnitsStatusReport() {
+  const total = state.units.length;
+  const sold = state.units.filter(u => u.status === 'مباع').length;
+  const available = state.units.filter(u => u.status === 'متاح').length;
+  const reserved = state.units.filter(u => u.status === 'محجوز').length;
+
+  return {
+    type: 'summary',
+    data: {
+      total: total,
+      sold: sold,
+      available: available,
+      reserved: reserved,
+      soldPercentage: total > 0 ? Math.round((sold / total) * 100) : 0
+    }
+  };
+}
+
+function generateCustomerActivityReport() {
+  const customerActivity = state.customers.map(customer => {
+    const contracts = state.contracts.filter(c => c.customerId === customer.id);
+    const totalUnits = contracts.length;
+    const totalPayments = state.vouchers
+      .filter(v => v.type === 'receipt' && contracts.some(c => c.id === v.contractId))
+      .reduce((sum, v) => sum + v.amount, 0);
+
+    return {
+      customer: customer.name,
+      units: totalUnits,
+      payments: egp(totalPayments)
+    };
+  });
+
+  return {
+    type: 'table',
+    headers: ['العميل', 'عدد الوحدات', 'إجمالي المدفوعات'],
+    data: customerActivity.map(c => [c.customer, c.units, c.payments])
+  };
+}
+
+function displayReport(title, reportData, reportId) {
+  let content = '';
+  
+  if (reportData.type === 'table') {
+    content = `
+      <table class="data-table">
+        <thead>
+          <tr>
+            ${reportData.headers.map(h => `<th>${h}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${reportData.data.map(row => 
+            `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`
+          ).join('')}
+        </tbody>
+      </table>
+    `;
+  } else if (reportData.type === 'summary') {
+    content = `
+      <div class="report-summary">
+        ${Object.entries(reportData.data).map(([key, value]) => 
+          `<div class="summary-item">
+            <span class="label">${key}:</span>
+            <span class="value">${value}</span>
+          </div>`
+        ).join('')}
+      </div>
+    `;
+  }
+
+  view.innerHTML = `
+    <div class="card">
+      <div class="header">
+        <h3>${title}</h3>
+        <div class="actions">
+          <button class="btn" onclick="printReport('${title}')">طباعة</button>
+          <button class="btn secondary" onclick="nav('reports')">العودة</button>
+        </div>
+      </div>
+      <div class="report-content">
+        ${content}
+      </div>
+    </div>
+  `;
+}
+
+function printReport(title) {
+  const content = document.querySelector('.report-content').innerHTML;
+  printHTML(title, content);
+}
+
+    document.getElementById('generate-report-btn').onclick = () => {
     runReport(reportId);
   };
 }
