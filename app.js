@@ -64,7 +64,7 @@ async function initializeApp() {
         console.error("Failed to initialize the application:", error);
         const viewEl = document.getElementById('view');
         if (viewEl) {
-            viewEl.innerHTML = `<div class="card warn"><h3>خطأ فادح</h3><p>لم يتمكن التطبيق من التحميل. قد تكون قاعدة البيانات تالفة أو أن متصفحك لا يدعم IndexedDB.</p><pre>${error.stack}</pre></div>`;
+            viewEl.innerHTML = safeHTML`<div class="card warn"><h3>خطأ فادح</h3><p>لم يتمكن التطبيق من التحميل. قد تكون قاعدة البيانات تالفة أو أن متصفحك لا يدعم IndexedDB.</p><pre>${error.stack}</pre></div>`;
         }
     }
 }
@@ -283,7 +283,7 @@ function exportCSV(headers, rows, name){
 function renderPartnerDetails(partnerId) {
     const partner = partnerById(partnerId);
     if (!partner) {
-        view.innerHTML = `<div class="card"><p>لم يتم العثور على الشريك.</p></div>`;
+        view.innerHTML = safeHTML`<div class="card"><p>لم يتم العثور على الشريك.</p></div>`;
         return;
     }
 
@@ -313,7 +313,7 @@ function renderPartnerDetails(partnerId) {
         ];
     });
 
-    view.innerHTML = `
+    view.innerHTML = safeHTML`
         <div class="card">
             <div class="header">
                 <h3>تفاصيل الشريك: ${partner.name}</h3>
@@ -830,7 +830,7 @@ function renderCustomers(){
 function renderCustomerDetails(customerId) {
     const customer = custById(customerId);
     if (!customer) {
-        view.innerHTML = `<div class="card"><p>لم يتم العثور على العميل.</p></div>`;
+        view.innerHTML = safeHTML`<div class="card"><p>لم يتم العثور على العميل.</p></div>`;
         return;
     }
 
@@ -865,7 +865,7 @@ function renderCustomerDetails(customerId) {
         `<button class="btn" onclick="openContractDetails('${c.id}')">عرض التفاصيل</button>`
     ]);
 
-    view.innerHTML = `
+    view.innerHTML = safeHTML`
         <div class="card">
             <div class="header" style="justify-content: space-between;">
                 <h3>تفاصيل العميل: ${customer.name}</h3>
@@ -1027,7 +1027,7 @@ function renderUnits(){
       table(['اسم الوحدة','الدور','البرج','نوع الوحدة','الشركاء','السعر','المتبقي','الحالة','إجراءات'], rows);
   }
 
-  view.innerHTML=`
+  view.innerHTML=safeHTML`
   <div class="grid">
     <div class="card">
       <h3>إضافة وحدة</h3>
@@ -1165,7 +1165,7 @@ function renderUnitEdit(unitId) {
         return nav('units');
     }
 
-    view.innerHTML = `
+    view.innerHTML = safeHTML`
     <div class="card">
       <h3>تعديل الوحدة: ${getUnitDisplayName(unit)}</h3>
       <div class="grid grid-4">
@@ -1222,14 +1222,14 @@ function renderUnitEdit(unitId) {
 function renderSafes(){
   function draw(){
     const rows = state.safes.map(s => [
-      `<span contenteditable="true" onblur="inlineUpd('safes','${s.id}','name',this.textContent)">${s.name || ''}</span>`,
+      `<span contenteditable="true" onblur="inlineUpd('safes','${s.id}','name',this.textContent)">${sanitizeHTML(s.name || '')}</span>`,
       `<span>${egp(s.balance || 0)}</span>`,
       `<button class="btn secondary" onclick="delRow('safes','${s.id}')">حذف</button>`
     ]);
     document.getElementById('s-list').innerHTML = table(['اسم الخزنة', 'الرصيد الحالي', ''], rows);
   }
 
-  view.innerHTML = `
+  view.innerHTML = safeHTML`
   <div class="grid grid-2">
       <div class="card">
           <h3>إضافة خزنة جديدة</h3>
@@ -1373,7 +1373,7 @@ function renderUnitDetails(unitId){
       const originalPercent = link.percent;
         return [
           partner ? partner.name : 'شريك محذوف',
-        `<span contenteditable="true" onblur="updatePartnerPercent(this, '${link.id}', ${originalPercent})">${link.percent}</span> %`,
+        `<span contenteditable="true" onblur="updatePartnerPercent(this, '${link.id}', ${originalPercent})">${sanitizeHTML(link.percent)}</span> %`,
           `<button class="btn secondary" onclick="removePartnerFromUnit('${link.id}')">حذف</button>`
         ];
       });
@@ -1860,8 +1860,8 @@ function renderBrokers() {
 
         const rows = list.map(b => [
             `<a href="#" onclick="nav('broker-details', '${b.id}')">${b.name || ''}</a>`,
-            `<span contenteditable="true" onblur="inlineUpd('brokers','${b.id}','phone',this.textContent)">${b.phone || ''}</span>`,
-            `<span contenteditable="true" onblur="inlineUpd('brokers','${b.id}','notes',this.textContent)">${b.notes || ''}</span>`,
+            `<span contenteditable="true" onblur="inlineUpd('brokers','${b.id}','phone',this.textContent)">${sanitizeHTML(b.phone || '')}</span>`,
+            `<span contenteditable="true" onblur="inlineUpd('brokers','${b.id}','notes',this.textContent)">${sanitizeHTML(b.notes || '')}</span>`,
             `<button class="btn secondary" onclick="delRow('brokers','${b.id}')">حذف</button>`
         ]);
 
@@ -3718,3 +3718,19 @@ window.openContractDetails = function(id) {
 
     view.innerHTML = html;
 };
+
+// دالة لتنظيف البيانات لمنع XSS
+function sanitizeHTML(str) {
+    if (typeof str !== 'string') return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+// دالة آمنة لإنشاء HTML
+function safeHTML(template, ...args) {
+    return template.reduce((result, str, i) => {
+        const arg = args[i - 1];
+        return result + str + (arg !== undefined ? sanitizeHTML(String(arg)) : '');
+    });
+}
