@@ -5225,3 +5225,285 @@ class ProjectManager {
 
 // تحميل المشاريع عند بدء التطبيق
 ProjectManager.loadProjects();
+
+// نظام تسوية المصاريف بين الشركاء
+class ExpenseSettlement {
+    static settlements = [];
+    
+    // إضافة مصروف جديد للمشروع
+    static addProjectExpense(projectId, expenseData) {
+        const project = ProjectManager.projects.find(p => p.id === projectId);
+        if (!project) return null;
+        
+        const expense = {
+            id: generateSecureId('expense_'),
+            projectId: projectId,
+            partnerId: expenseData.partnerId,
+            amount: expenseData.amount,
+            description: expenseData.description,
+            date: expenseData.date || new Date().toISOString(),
+            category: expenseData.category || 'general',
+            receipt: expenseData.receipt || null,
+            status: 'pending', // 'pending', 'approved', 'rejected'
+            approvedBy: null,
+            approvedAt: null,
+            createdAt: new Date().toISOString()
+        };
+        
+        // إضافة المصروف للمشروع
+        if (!project.expenses) project.expenses = [];
+        project.expenses.push(expense);
+        
+        // تحديث ميزانية المشروع
+        project.budget.spent += expense.amount;
+        project.budget.remaining = project.budget.total - project.budget.spent;
+        
+        ProjectManager.saveProjects();
+        
+        Analytics.trackEvent('expense_added', { 
+            projectId, 
+            partnerId: expenseData.partnerId,
+            amount: expense.amount 
+        });
+        
+        return expense.id;
+    }
+    
+    // حساب تسوية المصاريف للمشروع
+    static calculateSettlement(projectId) {
+        const project = ProjectManager.projects.find(p => p.id === projectId);
+        if (!project || !project.expenses) return null;
+        
+        // تجميع المصاريف حسب الشريك
+        const partnerExpenses = {};
+        let totalExpenses = 0;
+        
+        project.expenses.forEach(expense => {
+            if (expense.status === 'approved') {
+                if (!partnerExpenses[expense.partnerId]) {
+                    partnerExpenses[expense.partnerId] = 0;
+                }
+                partnerExpenses[expense.partnerId] += expense.amount;
+                totalExpenses += expense.amount;
+            }
+        });
+        
+        // حساب النسبة المئوية لكل شريك في المشروع
+        const partnerShares = {};
+        project.unitPartners.forEach(up => {
+            partnerShares[up.partnerId] = up.percent;
+        });
+        
+        // حساب المبلغ المطلوب من كل شريك
+        const partnerRequired = {};
+        Object.keys(partnerShares).forEach(partnerId => {
+            const share = partnerShares[partnerId];
+            partnerRequired[partnerId] = (totalExpenses * share) / 100;
+        });
+        
+        // حساب الفرق لكل شريك
+        const partnerDifferences = {};
+        Object.keys(partnerRequired).forEach(partnerId => {
+            const required = partnerRequired[partnerId];
+            const paid = partnerExpenses[partnerId] || 0;
+            partnerDifferences[partnerId] = paid - required;
+        });
+        
+        // إنشاء تسوية
+        const settlement = {
+            id: generateSecureId('settlement_'),
+            projectId: projectId,
+            totalExpenses: totalExpenses,
+            partnerExpenses: partnerExpenses,
+            partnerRequired: partnerRequired,
+            partnerDifferences: partnerDifferences,
+            transactions: this.generateSettlementTransactions(partnerDifferences),
+            status: 'pending', // 'pending', 'completed', 'cancelled'
+            createdAt: new Date().toISOString(),
+            completedAt: null
+        };
+        
+        this.settlements.push(settlement);
+        this.saveSettlements();
+        
+        return settlement;
+    }
+    
+    // إنشاء معاملات التسوية
+    static generateSettlementTransactions(partnerDifferences) {
+        const transactions = [];
+        const partners = Object.keys(partnerDifferences);
+        
+        // تجميع الشركاء حسب الفرق (إيجابي = مدين، سلبي = دائن)
+        const debtors = []; // مدينون (يجب أن يدفعوا)
+        const creditors = []; // دائنون (يجب أن يستلموا)
+        
+        partners.forEach(partnerId => {
+            const difference = partnerDifferences[partnerId];
+            if (difference > 0) {
+                debtors.push({ partnerId, amount: difference });
+            } else if (difference < 0) {
+                creditors.push({ partnerId, amount: Math.abs(difference) });
+            }
+        });
+        
+        // إنشاء المعاملات
+        debtors.forEach(debtor => {
+            creditors.forEach(creditor => {
+                if (debtor.amount > 0 && creditor.amount > 0) {
+                    const transferAmount = Math.min(debtor.amount, creditor.amount);
+                    
+                    transactions.push({
+                        id: generateSecureId('transfer_'),
+                        fromPartnerId: debtor.partnerId,
+                        toPartnerId: creditor.partnerId,
+                        amount: transferAmount,
+                        description: `تسوية مصاريف المشروع`,
+                        status: 'pending',
+                        createdAt: new Date().toISOString()
+                    });
+                    
+                    debtor.amount -= transferAmount;
+                    creditor.amount -= transferAmount;
+                }
+            });
+        });
+        
+        return transactions;
+    }
+    
+    // تنفيذ تسوية
+    static executeSettlement(settlementId) {
+        const settlement = this.settlements.find(s => s.id === settlementId);
+        if (!settlement || settlement.status !== 'pending') return false;
+        
+        // تنفيذ جميع المعاملات
+        let allCompleted = true;
+        settlement.transactions.forEach(transaction => {
+            if (transaction.status === 'pending') {
+                // إنشاء معاملة دين بين الشركاء
+                const debt = {
+                    id: generateSecureId('debt_'),
+                    owedPartnerId: transaction.toPartnerId,
+                    payingPartnerId: transaction.fromPartnerId,
+                    amount: transaction.amount,
+                    description: transaction.description,
+                    status: 'pending',
+                    createdAt: new Date().toISOString()
+                };
+                
+                // إضافة للدين العام
+                if (!state.partnerDebts) state.partnerDebts = [];
+                state.partnerDebts.push(debt);
+                
+                transaction.status = 'completed';
+                transaction.debtId = debt.id;
+            }
+        });
+        
+        if (allCompleted) {
+            settlement.status = 'completed';
+            settlement.completedAt = new Date().toISOString();
+            this.saveSettlements();
+            
+            // حفظ حالة التطبيق
+            persist();
+            
+            NotificationSystem.success('تم تنفيذ تسوية المصاريف بنجاح');
+            
+            Analytics.trackEvent('settlement_executed', { 
+                settlementId, 
+                projectId: settlement.projectId,
+                totalAmount: settlement.totalExpenses 
+            });
+            
+            return true;
+        }
+        
+        return false;
+    }
+    
+    // إلغاء تسوية
+    static cancelSettlement(settlementId) {
+        const settlement = this.settlements.find(s => s.id === settlementId);
+        if (settlement && settlement.status === 'pending') {
+            settlement.status = 'cancelled';
+            this.saveSettlements();
+            
+            NotificationSystem.info('تم إلغاء تسوية المصاريف');
+            return true;
+        }
+        return false;
+    }
+    
+    // الحصول على تقرير تسوية
+    static getSettlementReport(projectId) {
+        const project = ProjectManager.projects.find(p => p.id === projectId);
+        if (!project) return null;
+        
+        const settlement = this.calculateSettlement(projectId);
+        if (!settlement) return null;
+        
+        const report = {
+            project: {
+                id: project.id,
+                name: project.name,
+                totalBudget: project.budget.total,
+                totalSpent: project.budget.spent
+            },
+            settlement: settlement,
+            partnerDetails: []
+        };
+        
+        // تفاصيل كل شريك
+        Object.keys(settlement.partnerRequired).forEach(partnerId => {
+            const partner = state.partners.find(p => p.id === partnerId);
+            const share = project.unitPartners.find(up => up.partnerId === partnerId)?.percent || 0;
+            
+            report.partnerDetails.push({
+                partnerId: partnerId,
+                partnerName: partner ? partner.name : 'شريك غير محدد',
+                share: share,
+                required: settlement.partnerRequired[partnerId],
+                paid: settlement.partnerExpenses[partnerId] || 0,
+                difference: settlement.partnerDifferences[partnerId],
+                status: settlement.partnerDifferences[partnerId] >= 0 ? 'مدين' : 'دائن'
+            });
+        });
+        
+        return report;
+    }
+    
+    // الحصول على جميع التسويات
+    static getAllSettlements() {
+        return this.settlements;
+    }
+    
+    // الحصول على تسويات المشروع
+    static getProjectSettlements(projectId) {
+        return this.settlements.filter(s => s.projectId === projectId);
+    }
+    
+    // الحصول على تسويات الشريك
+    static getPartnerSettlements(partnerId) {
+        return this.settlements.filter(s => 
+            s.partnerDifferences && s.partnerDifferences[partnerId] !== undefined
+        );
+    }
+    
+    // حفظ التسويات
+    static saveSettlements() {
+        localStorage.setItem('expenseSettlements', JSON.stringify(this.settlements));
+    }
+    
+    // تحميل التسويات
+    static loadSettlements() {
+        const saved = localStorage.getItem('expenseSettlements');
+        if (saved) {
+            this.settlements = JSON.parse(saved);
+        }
+    }
+}
+
+// تحميل التسويات عند بدء التطبيق
+ExpenseSettlement.loadSettlements();
