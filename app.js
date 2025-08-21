@@ -2824,6 +2824,7 @@ function showAddTransferModal() {
       <input class="input" id="t-amount" type="number" placeholder="المبلغ" style="margin-top:10px;">
       <input class="input" id="t-date" type="date" value="${today()}" style="margin-top:10px;">
       <textarea class="input" id="t-notes" placeholder="ملاحظات" style="margin-top:10px;" rows="2"></textarea>
+      <button class="btn" style="margin-top:10px;" onclick="addTransfer()">تنفيذ التحويل</button>
     `;
     showModal('تسجيل تحويل بين الخزن', content, () => {
         const fromSafeId = document.getElementById('t-from').value;
@@ -3734,3 +3735,1237 @@ function safeHTML(template, ...args) {
         return result + str + (arg !== undefined ? sanitizeHTML(String(arg)) : '');
     });
 }
+
+// دوال التحقق من صحة المدخلات
+function validateInput(input, type = 'text', minLength = 1, maxLength = 1000) {
+    if (!input || typeof input !== 'string') return false;
+    const trimmed = input.trim();
+    if (trimmed.length < minLength || trimmed.length > maxLength) return false;
+    
+    switch (type) {
+        case 'email':
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+        case 'phone':
+            return /^[\d\s\-\+\(\)]+$/.test(trimmed);
+        case 'number':
+            return !isNaN(parseFloat(trimmed)) && isFinite(trimmed);
+        case 'date':
+            return !isNaN(Date.parse(trimmed));
+        case 'text':
+        default:
+            return true;
+    }
+}
+
+function sanitizeInput(input) {
+    if (typeof input !== 'string') return '';
+    return input.trim().replace(/[<>]/g, '');
+}
+
+// دالة آمنة لإنشاء معرفات فريدة
+function generateSecureId(prefix = '') {
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substr(2, 9);
+    return `${prefix}${timestamp}${random}`;
+}
+
+// نظام معالجة الأخطاء المحسن
+class ErrorHandler {
+    static handle(error, context = '') {
+        console.error(`Error in ${context}:`, error);
+        
+        // تسجيل الخطأ
+        this.logError(error, context);
+        
+        // عرض رسالة للمستخدم
+        this.showUserFriendlyError(error);
+    }
+    
+    static logError(error, context) {
+        const errorLog = {
+            timestamp: new Date().toISOString(),
+            context: context,
+            message: error.message,
+            stack: error.stack,
+            userAgent: navigator.userAgent
+        };
+        
+        // حفظ في localStorage للتحليل لاحقاً
+        const existingLogs = JSON.parse(localStorage.getItem('errorLogs') || '[]');
+        existingLogs.push(errorLog);
+        if (existingLogs.length > 100) existingLogs.shift(); // الاحتفاظ بآخر 100 خطأ فقط
+        localStorage.setItem('errorLogs', JSON.stringify(existingLogs));
+    }
+    
+    static showUserFriendlyError(error) {
+        const viewEl = document.getElementById('view');
+        if (viewEl) {
+            viewEl.innerHTML = safeHTML`
+                <div class="card warn">
+                    <h3>حدث خطأ</h3>
+                    <p>عذراً، حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى أو تحديث الصفحة.</p>
+                    <button class="btn" onclick="location.reload()">تحديث الصفحة</button>
+                </div>
+            `;
+        }
+    }
+}
+
+// دالة آمنة للتنفيذ مع معالجة الأخطاء
+function safeExecute(fn, context = '') {
+    try {
+        return fn();
+    } catch (error) {
+        ErrorHandler.handle(error, context);
+        return null;
+    }
+}
+
+// نظام تشفير كلمات المرور
+class PasswordManager {
+    static async hashPassword(password) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(password);
+        const hash = await crypto.subtle.digest('SHA-256', data);
+        return Array.from(new Uint8Array(hash))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+    }
+    
+    static async verifyPassword(password, hashedPassword) {
+        const hashedInput = await this.hashPassword(password);
+        return hashedInput === hashedPassword;
+    }
+    
+    static generateSalt() {
+        return Math.random().toString(36).substring(2, 15) + 
+               Math.random().toString(36).substring(2, 15);
+    }
+}
+
+// دالة آمنة لحفظ البيانات
+async function secureSave(key, data) {
+    try {
+        const encryptedData = btoa(JSON.stringify(data));
+        localStorage.setItem(key, encryptedData);
+        return true;
+    } catch (error) {
+        ErrorHandler.handle(error, 'secureSave');
+        return false;
+    }
+}
+
+// دالة آمنة لقراءة البيانات
+function secureLoad(key) {
+    try {
+        const encryptedData = localStorage.getItem(key);
+        if (!encryptedData) return null;
+        return JSON.parse(atob(encryptedData));
+    } catch (error) {
+        ErrorHandler.handle(error, 'secureLoad');
+        return null;
+    }
+}
+
+// نظام التخزين المؤقت لتحسين الأداء
+class CacheManager {
+    constructor() {
+        this.cache = new Map();
+        this.maxSize = 100;
+    }
+    
+    set(key, value, ttl = 300000) { // 5 دقائق افتراضياً
+        if (this.cache.size >= this.maxSize) {
+            const firstKey = this.cache.keys().next().value;
+            this.cache.delete(firstKey);
+        }
+        
+        this.cache.set(key, {
+            value: value,
+            expiry: Date.now() + ttl
+        });
+    }
+    
+    get(key) {
+        const item = this.cache.get(key);
+        if (!item) return null;
+        
+        if (Date.now() > item.expiry) {
+            this.cache.delete(key);
+            return null;
+        }
+        
+        return item.value;
+    }
+    
+    clear() {
+        this.cache.clear();
+    }
+    
+    clearExpired() {
+        const now = Date.now();
+        for (const [key, item] of this.cache.entries()) {
+            if (now > item.expiry) {
+                this.cache.delete(key);
+            }
+        }
+    }
+}
+
+// إنشاء مثيل للتخزين المؤقت
+const cache = new CacheManager();
+
+// دالة محسنة للحصول على البيانات مع التخزين المؤقت
+function getCachedData(key, fetchFunction, ttl = 300000) {
+    let data = cache.get(key);
+    if (!data) {
+        data = fetchFunction();
+        if (data) {
+            cache.set(key, data, ttl);
+        }
+    }
+    return data;
+}
+
+// نظام المراقبة والتحليلات
+class Analytics {
+    static trackEvent(eventName, data = {}) {
+        const event = {
+            name: eventName,
+            data: data,
+            timestamp: new Date().toISOString(),
+            sessionId: this.getSessionId()
+        };
+        
+        // حفظ في localStorage
+        const events = JSON.parse(localStorage.getItem('analytics') || '[]');
+        events.push(event);
+        if (events.length > 1000) events.splice(0, 100); // الاحتفاظ بآخر 1000 حدث
+        localStorage.setItem('analytics', JSON.stringify(events));
+    }
+    
+    static trackPageView(pageName) {
+        this.trackEvent('page_view', { page: pageName });
+    }
+    
+    static trackError(error, context) {
+        this.trackEvent('error', { 
+            message: error.message, 
+            context: context,
+            stack: error.stack 
+        });
+    }
+    
+    static trackPerformance(operation, duration) {
+        this.trackEvent('performance', { 
+            operation: operation, 
+            duration: duration 
+        });
+    }
+    
+    static getSessionId() {
+        let sessionId = localStorage.getItem('sessionId');
+        if (!sessionId) {
+            sessionId = generateSecureId('session_');
+            localStorage.setItem('sessionId', sessionId);
+        }
+        return sessionId;
+    }
+    
+    static getAnalytics() {
+        return JSON.parse(localStorage.getItem('analytics') || '[]');
+    }
+    
+    static clearAnalytics() {
+        localStorage.removeItem('analytics');
+    }
+}
+
+// دالة لقياس الأداء
+function measurePerformance(operation, fn) {
+    const start = performance.now();
+    const result = fn();
+    const duration = performance.now() - start;
+    
+    Analytics.trackPerformance(operation, duration);
+    return result;
+}
+
+// نظام الإشعارات المحسن
+class NotificationSystem {
+    static show(message, type = 'info', duration = 5000) {
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.innerHTML = `
+            <div class="notification-content">
+                <span class="notification-message">${sanitizeHTML(message)}</span>
+                <button class="notification-close" onclick="this.parentElement.parentElement.remove()">×</button>
+            </div>
+        `;
+        
+        // إضافة الأنماط
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: ${this.getBackgroundColor(type)};
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 10000;
+            max-width: 400px;
+            animation: slideIn 0.3s ease-out;
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // إزالة تلقائية
+        setTimeout(() => {
+            if (notification.parentElement) {
+                notification.style.animation = 'slideOut 0.3s ease-in';
+                setTimeout(() => notification.remove(), 300);
+            }
+        }, duration);
+        
+        // تتبع الحدث
+        Analytics.trackEvent('notification_shown', { type, message });
+    }
+    
+    static success(message, duration) {
+        this.show(message, 'success', duration);
+    }
+    
+    static error(message, duration) {
+        this.show(message, 'error', duration);
+    }
+    
+    static warning(message, duration) {
+        this.show(message, 'warning', duration);
+    }
+    
+    static info(message, duration) {
+        this.show(message, 'info', duration);
+    }
+    
+    static getBackgroundColor(type) {
+        const colors = {
+            success: '#28a745',
+            error: '#dc3545',
+            warning: '#ffc107',
+            info: '#17a2b8'
+        };
+        return colors[type] || colors.info;
+    }
+}
+
+// إضافة أنماط CSS للإشعارات
+const notificationStyles = `
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideOut {
+        from { transform: translateX(0); opacity: 1; }
+        to { transform: translateX(100%); opacity: 0; }
+    }
+`;
+
+// إضافة الأنماط للصفحة
+if (!document.getElementById('notification-styles')) {
+    const styleSheet = document.createElement('style');
+    styleSheet.id = 'notification-styles';
+    styleSheet.textContent = notificationStyles;
+    document.head.appendChild(styleSheet);
+}
+
+// نظام التحميل المحسن
+class LoadingManager {
+    static show(message = 'جاري التحميل...') {
+        const loading = document.createElement('div');
+        loading.id = 'loading-overlay';
+        loading.innerHTML = `
+            <div class="loading-content">
+                <div class="loading-spinner"></div>
+                <p class="loading-message">${sanitizeHTML(message)}</p>
+            </div>
+        `;
+        
+        loading.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        `;
+        
+        document.body.appendChild(loading);
+    }
+    
+    static hide() {
+        const loading = document.getElementById('loading-overlay');
+        if (loading) {
+            loading.remove();
+        }
+    }
+    
+    static updateMessage(message) {
+        const loadingMessage = document.querySelector('.loading-message');
+        if (loadingMessage) {
+            loadingMessage.textContent = message;
+        }
+    }
+}
+
+// إضافة أنماط CSS للتحميل
+const loadingStyles = `
+    .loading-content {
+        text-align: center;
+        color: white;
+    }
+    
+    .loading-spinner {
+        width: 50px;
+        height: 50px;
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        border-top: 4px solid white;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 20px;
+    }
+    
+    .loading-message {
+        font-size: 16px;
+        margin: 0;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+`;
+
+// إضافة الأنماط للصفحة
+if (!document.getElementById('loading-styles')) {
+    const styleSheet = document.createElement('style');
+    styleSheet.id = 'loading-styles';
+    styleSheet.textContent = loadingStyles;
+    document.head.appendChild(styleSheet);
+}
+
+// نظام النسخ الاحتياطي المحسن
+class BackupManager {
+    static async createBackup() {
+        try {
+            LoadingManager.show('جاري إنشاء النسخة الاحتياطية...');
+            
+            const backup = {
+                timestamp: new Date().toISOString(),
+                version: '2.0.0',
+                data: {
+                    customers: state.customers,
+                    units: state.units,
+                    partners: state.partners,
+                    contracts: state.contracts,
+                    installments: state.installments,
+                    vouchers: state.vouchers,
+                    safes: state.safes,
+                    brokers: state.brokers,
+                    partnerGroups: state.partnerGroups,
+                    unitPartners: state.unitPartners,
+                    brokerDues: state.brokerDues,
+                    partnerDebts: state.partnerDebts,
+                    actions: state.actions
+                },
+                metadata: {
+                    totalRecords: this.getTotalRecords(),
+                    checksum: await this.generateChecksum()
+                }
+            };
+            
+            // تشفير البيانات
+            const encryptedBackup = btoa(JSON.stringify(backup));
+            
+            // حفظ في localStorage
+            const backups = JSON.parse(localStorage.getItem('backups') || '[]');
+            backups.push({
+                id: generateSecureId('backup_'),
+                timestamp: backup.timestamp,
+                size: encryptedBackup.length,
+                checksum: backup.metadata.checksum
+            });
+            
+            // الاحتفاظ بآخر 10 نسخ احتياطية فقط
+            if (backups.length > 10) {
+                backups.splice(0, backups.length - 10);
+            }
+            
+            localStorage.setItem('backups', JSON.stringify(backups));
+            localStorage.setItem('backup_data', encryptedBackup);
+            
+            LoadingManager.hide();
+            NotificationSystem.success('تم إنشاء النسخة الاحتياطية بنجاح');
+            
+            Analytics.trackEvent('backup_created', { 
+                size: encryptedBackup.length,
+                totalRecords: backup.metadata.totalRecords 
+            });
+            
+            return backup;
+        } catch (error) {
+            LoadingManager.hide();
+            ErrorHandler.handle(error, 'createBackup');
+            NotificationSystem.error('فشل في إنشاء النسخة الاحتياطية');
+            return null;
+        }
+    }
+    
+    static async restoreBackup(backupId) {
+        try {
+            LoadingManager.show('جاري استعادة النسخة الاحتياطية...');
+            
+            const backupData = localStorage.getItem('backup_data');
+            if (!backupData) {
+                throw new Error('لا توجد نسخة احتياطية للاستعادة');
+            }
+            
+            const backup = JSON.parse(atob(backupData));
+            
+            // التحقق من صحة البيانات
+            if (!backup.data || !backup.metadata) {
+                throw new Error('النسخة الاحتياطية تالفة');
+            }
+            
+            // استعادة البيانات
+            Object.assign(state, backup.data);
+            
+            // حفظ البيانات المستعادة
+            await secureSave('state', state);
+            
+            LoadingManager.hide();
+            NotificationSystem.success('تم استعادة النسخة الاحتياطية بنجاح');
+            
+            Analytics.trackEvent('backup_restored', { 
+                backupId: backupId,
+                timestamp: backup.timestamp 
+            });
+            
+            // إعادة تحميل الصفحة
+            setTimeout(() => location.reload(), 1000);
+            
+        } catch (error) {
+            LoadingManager.hide();
+            ErrorHandler.handle(error, 'restoreBackup');
+            NotificationSystem.error('فشل في استعادة النسخة الاحتياطية');
+        }
+    }
+    
+    static getBackups() {
+        return JSON.parse(localStorage.getItem('backups') || '[]');
+    }
+    
+    static async generateChecksum() {
+        const dataString = JSON.stringify(state);
+        const encoder = new TextEncoder();
+        const data = encoder.encode(dataString);
+        const hash = await crypto.subtle.digest('SHA-256', data);
+        return Array.from(new Uint8Array(hash))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+    }
+    
+    static getTotalRecords() {
+        return Object.values(state).reduce((total, collection) => {
+            return total + (Array.isArray(collection) ? collection.length : 0);
+        }, 0);
+    }
+}
+
+// نظام التصدير والاستيراد المحسن
+class DataManager {
+    static async exportData(format = 'json') {
+        try {
+            LoadingManager.show('جاري تصدير البيانات...');
+            
+            const exportData = {
+                timestamp: new Date().toISOString(),
+                version: '2.0.0',
+                data: state,
+                metadata: {
+                    totalRecords: BackupManager.getTotalRecords(),
+                    checksum: await BackupManager.generateChecksum()
+                }
+            };
+            
+            let content, filename, mimeType;
+            
+            switch (format) {
+                case 'json':
+                    content = JSON.stringify(exportData, null, 2);
+                    filename = `real_estate_data_${new Date().toISOString().split('T')[0]}.json`;
+                    mimeType = 'application/json';
+                    break;
+                    
+                case 'csv':
+                    content = this.convertToCSV(exportData.data);
+                    filename = `real_estate_data_${new Date().toISOString().split('T')[0]}.csv`;
+                    mimeType = 'text/csv';
+                    break;
+                    
+                case 'excel':
+                    content = await this.convertToExcel(exportData.data);
+                    filename = `real_estate_data_${new Date().toISOString().split('T')[0]}.xlsx`;
+                    mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+                    break;
+                    
+                default:
+                    throw new Error('تنسيق غير مدعوم');
+            }
+            
+            // تحميل الملف
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            LoadingManager.hide();
+            NotificationSystem.success(`تم تصدير البيانات بنجاح (${format.toUpperCase()})`);
+            
+            Analytics.trackEvent('data_exported', { format, filename });
+            
+        } catch (error) {
+            LoadingManager.hide();
+            ErrorHandler.handle(error, 'exportData');
+            NotificationSystem.error('فشل في تصدير البيانات');
+        }
+    }
+    
+    static async importData(file) {
+        try {
+            LoadingManager.show('جاري استيراد البيانات...');
+            
+            const content = await this.readFile(file);
+            let importData;
+            
+            if (file.name.endsWith('.json')) {
+                importData = JSON.parse(content);
+            } else if (file.name.endsWith('.csv')) {
+                importData = this.parseCSV(content);
+            } else {
+                throw new Error('تنسيق الملف غير مدعوم');
+            }
+            
+            // التحقق من صحة البيانات
+            if (!this.validateImportData(importData)) {
+                throw new Error('البيانات المستوردة غير صحيحة');
+            }
+            
+            // استيراد البيانات
+            Object.assign(state, importData.data || importData);
+            
+            // حفظ البيانات
+            await secureSave('state', state);
+            
+            LoadingManager.hide();
+            NotificationSystem.success('تم استيراد البيانات بنجاح');
+            
+            Analytics.trackEvent('data_imported', { 
+                filename: file.name,
+                size: file.size 
+            });
+            
+            // إعادة تحميل الصفحة
+            setTimeout(() => location.reload(), 1000);
+            
+        } catch (error) {
+            LoadingManager.hide();
+            ErrorHandler.handle(error, 'importData');
+            NotificationSystem.error('فشل في استيراد البيانات');
+        }
+    }
+    
+    static readFile(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = (e) => reject(e);
+            reader.readAsText(file);
+        });
+    }
+    
+    static convertToCSV(data) {
+        const csvRows = [];
+        
+        // إضافة رؤوس الجداول
+        Object.keys(data).forEach(collection => {
+            if (Array.isArray(data[collection]) && data[collection].length > 0) {
+                csvRows.push(`\n=== ${collection} ===`);
+                const headers = Object.keys(data[collection][0]);
+                csvRows.push(headers.join(','));
+                
+                data[collection].forEach(item => {
+                    const row = headers.map(header => {
+                        const value = item[header];
+                        return typeof value === 'string' ? `"${value}"` : value;
+                    });
+                    csvRows.push(row.join(','));
+                });
+            }
+        });
+        
+        return csvRows.join('\n');
+    }
+    
+    static async convertToExcel(data) {
+        // هنا يمكن إضافة مكتبة مثل SheetJS لإنشاء ملفات Excel
+        // للتبسيط، سنقوم بإنشاء CSV مع امتداد .xlsx
+        return this.convertToCSV(data);
+    }
+    
+    static parseCSV(content) {
+        const lines = content.split('\n');
+        const data = {};
+        let currentCollection = null;
+        let headers = [];
+        
+        lines.forEach(line => {
+            if (line.startsWith('=== ') && line.endsWith(' ===')) {
+                currentCollection = line.replace(/=== | ===/g, '');
+                data[currentCollection] = [];
+                headers = [];
+            } else if (currentCollection && line.trim()) {
+                if (headers.length === 0) {
+                    headers = line.split(',').map(h => h.trim());
+                } else {
+                    const values = line.split(',').map(v => v.replace(/"/g, ''));
+                    const item = {};
+                    headers.forEach((header, index) => {
+                        item[header] = values[index] || '';
+                    });
+                    data[currentCollection].push(item);
+                }
+            }
+        });
+        
+        return { data };
+    }
+    
+    static validateImportData(data) {
+        // التحقق من وجود البيانات الأساسية
+        const requiredCollections = ['customers', 'units', 'partners'];
+        return requiredCollections.every(collection => 
+            data.data && Array.isArray(data.data[collection])
+        );
+    }
+}
+
+// نظام التقارير المتقدم
+class ReportManager {
+    static generateSalesReport(fromDate, toDate) {
+        const report = {
+            period: { from: fromDate, to: toDate },
+            summary: {
+                totalSales: 0,
+                totalRevenue: 0,
+                averagePrice: 0,
+                unitsSold: 0,
+                pendingSales: 0
+            },
+            details: [],
+            charts: {}
+        };
+        
+        // تحليل العقود
+        const contractsInPeriod = state.contracts.filter(c => {
+            const contractDate = new Date(c.date);
+            return contractDate >= new Date(fromDate) && contractDate <= new Date(toDate);
+        });
+        
+        report.details = contractsInPeriod.map(contract => {
+            const unit = state.units.find(u => u.id === contract.unitId);
+            const customer = state.customers.find(c => c.id === contract.customerId);
+            
+            return {
+                contractId: contract.id,
+                unitName: unit ? unit.name : 'غير محدد',
+                customerName: customer ? customer.name : 'غير محدد',
+                price: contract.price,
+                date: contract.date,
+                status: contract.status
+            };
+        });
+        
+        // حساب الإحصائيات
+        report.summary.unitsSold = report.details.length;
+        report.summary.totalRevenue = report.details.reduce((sum, item) => sum + (item.price || 0), 0);
+        report.summary.averagePrice = report.summary.unitsSold > 0 ? 
+            report.summary.totalRevenue / report.summary.unitsSold : 0;
+        
+        return report;
+    }
+    
+    static generateFinancialReport() {
+        const report = {
+            summary: {
+                totalIncome: 0,
+                totalExpenses: 0,
+                netProfit: 0,
+                totalAssets: 0,
+                totalLiabilities: 0
+            },
+            income: [],
+            expenses: [],
+            assets: [],
+            liabilities: []
+        };
+        
+        // تحليل الإيصالات
+        state.vouchers.forEach(voucher => {
+            if (voucher.type === 'receipt') {
+                report.summary.totalIncome += voucher.amount;
+                report.income.push({
+                    id: voucher.id,
+                    amount: voucher.amount,
+                    description: voucher.description,
+                    date: voucher.date
+                });
+            } else {
+                report.summary.totalExpenses += voucher.amount;
+                report.expenses.push({
+                    id: voucher.id,
+                    amount: voucher.amount,
+                    description: voucher.description,
+                    date: voucher.date
+                });
+            }
+        });
+        
+        // حساب صافي الربح
+        report.summary.netProfit = report.summary.totalIncome - report.summary.totalExpenses;
+        
+        // تحليل الأصول (الوحدات)
+        state.units.forEach(unit => {
+            if (unit.status === 'متاحة') {
+                report.summary.totalAssets += unit.totalPrice || 0;
+                report.assets.push({
+                    id: unit.id,
+                    name: unit.name,
+                    value: unit.totalPrice || 0,
+                    type: 'unit'
+                });
+            }
+        });
+        
+        // تحليل الخزن
+        state.safes.forEach(safe => {
+            if (safe.balance > 0) {
+                report.summary.totalAssets += safe.balance;
+                report.assets.push({
+                    id: safe.id,
+                    name: safe.name,
+                    value: safe.balance,
+                    type: 'safe'
+                });
+            }
+        });
+        
+        return report;
+    }
+    
+    static generatePartnerReport(partnerId) {
+        const partner = state.partners.find(p => p.id === partnerId);
+        if (!partner) return null;
+        
+        const report = {
+            partner: partner,
+            summary: {
+                totalUnits: 0,
+                totalInvestment: 0,
+                totalIncome: 0,
+                totalExpenses: 0,
+                netProfit: 0
+            },
+            units: [],
+            transactions: []
+        };
+        
+        // تحليل الوحدات المملوكة
+        const partnerUnits = state.unitPartners.filter(up => up.partnerId === partnerId);
+        report.summary.totalUnits = partnerUnits.length;
+        
+        partnerUnits.forEach(up => {
+            const unit = state.units.find(u => u.id === up.unitId);
+            if (unit) {
+                const investment = (unit.totalPrice * up.percent) / 100;
+                report.summary.totalInvestment += investment;
+                
+                report.units.push({
+                    unitId: unit.id,
+                    unitName: unit.name,
+                    ownership: up.percent,
+                    investment: investment,
+                    status: unit.status
+                });
+            }
+        });
+        
+        // تحليل المعاملات
+        const ledger = generatePartnerLedger(partnerId);
+        report.summary.totalIncome = ledger.totalIncome;
+        report.summary.totalExpenses = ledger.totalExpense;
+        report.summary.netProfit = ledger.netPosition;
+        report.transactions = ledger.transactions;
+        
+        return report;
+    }
+    
+    static async exportReport(report, format = 'pdf') {
+        try {
+            LoadingManager.show('جاري إنشاء التقرير...');
+            
+            let content, filename, mimeType;
+            
+            switch (format) {
+                case 'json':
+                    content = JSON.stringify(report, null, 2);
+                    filename = `report_${new Date().toISOString().split('T')[0]}.json`;
+                    mimeType = 'application/json';
+                    break;
+                    
+                case 'csv':
+                    content = this.convertReportToCSV(report);
+                    filename = `report_${new Date().toISOString().split('T')[0]}.csv`;
+                    mimeType = 'text/csv';
+                    break;
+                    
+                case 'pdf':
+                    content = await this.convertReportToPDF(report);
+                    filename = `report_${new Date().toISOString().split('T')[0]}.pdf`;
+                    mimeType = 'application/pdf';
+                    break;
+                    
+                default:
+                    throw new Error('تنسيق غير مدعوم');
+            }
+            
+            // تحميل التقرير
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            LoadingManager.hide();
+            NotificationSystem.success(`تم إنشاء التقرير بنجاح (${format.toUpperCase()})`);
+            
+            Analytics.trackEvent('report_exported', { format, filename });
+            
+        } catch (error) {
+            LoadingManager.hide();
+            ErrorHandler.handle(error, 'exportReport');
+            NotificationSystem.error('فشل في إنشاء التقرير');
+        }
+    }
+    
+    static convertReportToCSV(report) {
+        const csvRows = [];
+        
+        // إضافة الملخص
+        csvRows.push('=== ملخص التقرير ===');
+        csvRows.push('المؤشر,القيمة');
+        Object.entries(report.summary).forEach(([key, value]) => {
+            csvRows.push(`${key},${value}`);
+        });
+        
+        // إضافة التفاصيل
+        if (report.details) {
+            csvRows.push('\n=== تفاصيل التقرير ===');
+            const headers = Object.keys(report.details[0] || {});
+            csvRows.push(headers.join(','));
+            report.details.forEach(item => {
+                const row = headers.map(header => {
+                    const value = item[header];
+                    return typeof value === 'string' ? `"${value}"` : value;
+                });
+                csvRows.push(row.join(','));
+            });
+        }
+        
+        return csvRows.join('\n');
+    }
+    
+    static async convertReportToPDF(report) {
+        // هنا يمكن إضافة مكتبة مثل jsPDF لإنشاء ملفات PDF
+        // للتبسيط، سنقوم بإنشاء HTML يمكن طباعته
+        const htmlContent = this.convertReportToHTML(report);
+        return htmlContent;
+    }
+    
+    static convertReportToHTML(report) {
+        return `
+            <!DOCTYPE html>
+            <html dir="rtl">
+            <head>
+                <meta charset="UTF-8">
+                <title>تقرير العقارات</title>
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 20px; }
+                    .header { text-align: center; margin-bottom: 30px; }
+                    .summary { margin-bottom: 30px; }
+                    .details { margin-bottom: 30px; }
+                    table { width: 100%; border-collapse: collapse; }
+                    th, td { border: 1px solid #ddd; padding: 8px; text-align: right; }
+                    th { background-color: #f2f2f2; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>تقرير العقارات</h1>
+                    <p>تاريخ التقرير: ${new Date().toLocaleDateString('ar-EG')}</p>
+                </div>
+                
+                <div class="summary">
+                    <h2>ملخص التقرير</h2>
+                    <table>
+                        <tr><th>المؤشر</th><th>القيمة</th></tr>
+                        ${Object.entries(report.summary).map(([key, value]) => 
+                            `<tr><td>${key}</td><td>${value}</td></tr>`
+                        ).join('')}
+                    </table>
+                </div>
+                
+                ${report.details ? `
+                <div class="details">
+                    <h2>تفاصيل التقرير</h2>
+                    <table>
+                        <tr>${Object.keys(report.details[0] || {}).map(key => `<th>${key}</th>`).join('')}</tr>
+                        ${report.details.map(item => 
+                            `<tr>${Object.values(item).map(value => `<td>${value}</td>`).join('')}</tr>`
+                        ).join('')}
+                    </table>
+                </div>
+                ` : ''}
+            </body>
+            </html>
+        `;
+    }
+}
+
+// نظام التنبيهات والإشعارات
+class AlertSystem {
+    static alerts = [];
+    
+    static addAlert(type, message, priority = 'normal', expiresAt = null) {
+        const alert = {
+            id: generateSecureId('alert_'),
+            type: type, // 'info', 'warning', 'error', 'success'
+            message: message,
+            priority: priority, // 'low', 'normal', 'high', 'critical'
+            createdAt: new Date().toISOString(),
+            expiresAt: expiresAt,
+            isRead: false
+        };
+        
+        this.alerts.push(alert);
+        this.saveAlerts();
+        this.showAlert(alert);
+        
+        Analytics.trackEvent('alert_created', { type, priority });
+        
+        return alert.id;
+    }
+    
+    static removeAlert(alertId) {
+        this.alerts = this.alerts.filter(alert => alert.id !== alertId);
+        this.saveAlerts();
+    }
+    
+    static markAsRead(alertId) {
+        const alert = this.alerts.find(a => a.id === alertId);
+        if (alert) {
+            alert.isRead = true;
+            this.saveAlerts();
+        }
+    }
+    
+    static getUnreadAlerts() {
+        return this.alerts.filter(alert => !alert.isRead);
+    }
+    
+    static getAlertsByType(type) {
+        return this.alerts.filter(alert => alert.type === type);
+    }
+    
+    static getAlertsByPriority(priority) {
+        return this.alerts.filter(alert => alert.priority === priority);
+    }
+    
+    static checkExpiredAlerts() {
+        const now = new Date();
+        this.alerts = this.alerts.filter(alert => {
+            if (alert.expiresAt && new Date(alert.expiresAt) < now) {
+                return false; // إزالة التنبيهات المنتهية الصلاحية
+            }
+            return true;
+        });
+        this.saveAlerts();
+    }
+    
+    static saveAlerts() {
+        localStorage.setItem('alerts', JSON.stringify(this.alerts));
+    }
+    
+    static loadAlerts() {
+        const saved = localStorage.getItem('alerts');
+        if (saved) {
+            this.alerts = JSON.parse(saved);
+            this.checkExpiredAlerts();
+        }
+    }
+    
+    static showAlert(alert) {
+        // عرض التنبيه في الواجهة
+        const alertContainer = document.getElementById('alert-container');
+        if (!alertContainer) {
+            const container = document.createElement('div');
+            container.id = 'alert-container';
+            container.style.cssText = `
+                position: fixed;
+                top: 20px;
+                left: 20px;
+                z-index: 10001;
+                max-width: 400px;
+            `;
+            document.body.appendChild(container);
+        }
+        
+        const alertElement = document.createElement('div');
+        alertElement.className = `alert alert-${alert.type} alert-${alert.priority}`;
+        alertElement.innerHTML = `
+            <div class="alert-content">
+                <span class="alert-message">${sanitizeHTML(alert.message)}</span>
+                <button class="alert-close" onclick="AlertSystem.removeAlert('${alert.id}'); this.parentElement.parentElement.remove();">×</button>
+            </div>
+        `;
+        
+        alertElement.style.cssText = `
+            background: ${this.getAlertColor(alert.type, alert.priority)};
+            color: white;
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            animation: slideInLeft 0.3s ease-out;
+        `;
+        
+        document.getElementById('alert-container').appendChild(alertElement);
+        
+        // إزالة تلقائية للتنبيهات العادية
+        if (alert.priority === 'normal') {
+            setTimeout(() => {
+                if (alertElement.parentElement) {
+                    alertElement.style.animation = 'slideOutLeft 0.3s ease-in';
+                    setTimeout(() => {
+                        if (alertElement.parentElement) {
+                            alertElement.remove();
+                            this.removeAlert(alert.id);
+                        }
+                    }, 300);
+                }
+            }, 8000);
+        }
+    }
+    
+    static getAlertColor(type, priority) {
+        const colors = {
+            info: { normal: '#17a2b8', high: '#138496', critical: '#0c5460' },
+            warning: { normal: '#ffc107', high: '#e0a800', critical: '#856404' },
+            error: { normal: '#dc3545', high: '#c82333', critical: '#721c24' },
+            success: { normal: '#28a745', high: '#1e7e34', critical: '#155724' }
+        };
+        
+        return colors[type]?.[priority] || colors.info.normal;
+    }
+    
+    // دوال مساعدة للتنبيهات الشائعة
+    static info(message, priority = 'normal') {
+        return this.addAlert('info', message, priority);
+    }
+    
+    static warning(message, priority = 'normal') {
+        return this.addAlert('warning', message, priority);
+    }
+    
+    static error(message, priority = 'normal') {
+        return this.addAlert('error', message, priority);
+    }
+    
+    static success(message, priority = 'normal') {
+        return this.addAlert('success', message, priority);
+    }
+    
+    // تنبيهات تلقائية للمعاملات
+    static checkAutomaticAlerts() {
+        // تنبيه للعقود القريبة من الاستحقاق
+        const today = new Date();
+        const thirtyDaysFromNow = new Date(today.getTime() + (30 * 24 * 60 * 60 * 1000));
+        
+        state.installments.forEach(installment => {
+            if (installment.status === 'مستحق' && new Date(installment.dueDate) <= thirtyDaysFromNow) {
+                const daysUntilDue = Math.ceil((new Date(installment.dueDate) - today) / (1000 * 60 * 60 * 24));
+                this.warning(
+                    `قسط مستحق خلال ${daysUntilDue} يوم - ${installment.contractId}`,
+                    daysUntilDue <= 7 ? 'high' : 'normal'
+                );
+            }
+        });
+        
+        // تنبيه للوحدات المتاحة لفترة طويلة
+        const sixMonthsAgo = new Date(today.getTime() - (180 * 24 * 60 * 60 * 1000));
+        state.units.forEach(unit => {
+            if (unit.status === 'متاحة' && unit.createdAt && new Date(unit.createdAt) < sixMonthsAgo) {
+                this.info(
+                    `الوحدة ${unit.name} متاحة منذ أكثر من 6 أشهر`,
+                    'normal'
+                );
+            }
+        });
+    }
+}
+
+// إضافة أنماط CSS للتنبيهات
+const alertStyles = `
+    @keyframes slideInLeft {
+        from { transform: translateX(-100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideOutLeft {
+        from { transform: translateX(0); opacity: 1; }
+        to { transform: translateX(-100%); opacity: 0; }
+    }
+`;
+
+// إضافة الأنماط للصفحة
+if (!document.getElementById('alert-styles')) {
+    const styleSheet = document.createElement('style');
+    styleSheet.id = 'alert-styles';
+    styleSheet.textContent = alertStyles;
+    document.head.appendChild(styleSheet);
+}
+
+// تحميل التنبيهات عند بدء التطبيق
+AlertSystem.loadAlerts();
