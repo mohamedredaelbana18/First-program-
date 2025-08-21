@@ -4969,3 +4969,259 @@ if (!document.getElementById('alert-styles')) {
 
 // تحميل التنبيهات عند بدء التطبيق
 AlertSystem.loadAlerts();
+
+// نظام إدارة المشاريع العقارية
+class ProjectManager {
+    static projects = [];
+    
+    static createProject(data) {
+        const project = {
+            id: generateSecureId('project_'),
+            name: data.name,
+            description: data.description,
+            location: data.location,
+            type: data.type, // 'residential', 'commercial', 'mixed', 'development'
+            status: 'planning', // 'planning', 'construction', 'marketing', 'completed', 'sold'
+            startDate: data.startDate,
+            expectedCompletion: data.expectedCompletion,
+            actualCompletion: null,
+            budget: {
+                total: data.totalBudget,
+                spent: 0,
+                remaining: data.totalBudget
+            },
+            units: [],
+            contractors: [],
+            milestones: [],
+            risks: [],
+            documents: [],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+        
+        this.projects.push(project);
+        this.saveProjects();
+        
+        Analytics.trackEvent('project_created', { 
+            projectId: project.id, 
+            type: project.type,
+            budget: project.budget.total 
+        });
+        
+        return project.id;
+    }
+    
+    static updateProject(projectId, updates) {
+        const project = this.projects.find(p => p.id === projectId);
+        if (project) {
+            Object.assign(project, updates);
+            project.updatedAt = new Date().toISOString();
+            this.saveProjects();
+            
+            Analytics.trackEvent('project_updated', { projectId, updates });
+        }
+    }
+    
+    static addUnitToProject(projectId, unitData) {
+        const project = this.projects.find(p => p.id === projectId);
+        if (project) {
+            const unit = {
+                id: generateSecureId('unit_'),
+                name: unitData.name,
+                type: unitData.type,
+                area: unitData.area,
+                price: unitData.price,
+                status: 'available',
+                features: unitData.features || [],
+                createdAt: new Date().toISOString()
+            };
+            
+            project.units.push(unit);
+            this.saveProjects();
+            
+            return unit.id;
+        }
+    }
+    
+    static addContractor(projectId, contractorData) {
+        const project = this.projects.find(p => p.id === projectId);
+        if (project) {
+            const contractor = {
+                id: generateSecureId('contractor_'),
+                name: contractorData.name,
+                type: contractorData.type, // 'builder', 'architect', 'engineer', 'supplier'
+                contact: contractorData.contact,
+                contractValue: contractorData.contractValue,
+                startDate: contractorData.startDate,
+                endDate: contractorData.endDate,
+                status: 'active',
+                payments: [],
+                createdAt: new Date().toISOString()
+            };
+            
+            project.contractors.push(contractor);
+            this.saveProjects();
+            
+            return contractor.id;
+        }
+    }
+    
+    static addMilestone(projectId, milestoneData) {
+        const project = this.projects.find(p => p.id === projectId);
+        if (project) {
+            const milestone = {
+                id: generateSecureId('milestone_'),
+                name: milestoneData.name,
+                description: milestoneData.description,
+                dueDate: milestoneData.dueDate,
+                completedDate: null,
+                status: 'pending', // 'pending', 'in_progress', 'completed', 'delayed'
+                progress: 0,
+                dependencies: milestoneData.dependencies || [],
+                createdAt: new Date().toISOString()
+            };
+            
+            project.milestones.push(milestone);
+            this.saveProjects();
+            
+            return milestone.id;
+        }
+    }
+    
+    static updateMilestoneProgress(milestoneId, progress) {
+        this.projects.forEach(project => {
+            const milestone = project.milestones.find(m => m.id === milestoneId);
+            if (milestone) {
+                milestone.progress = progress;
+                if (progress >= 100) {
+                    milestone.status = 'completed';
+                    milestone.completedDate = new Date().toISOString();
+                } else if (progress > 0) {
+                    milestone.status = 'in_progress';
+                }
+                this.saveProjects();
+            }
+        });
+    }
+    
+    static addRisk(projectId, riskData) {
+        const project = this.projects.find(p => p.id === projectId);
+        if (project) {
+            const risk = {
+                id: generateSecureId('risk_'),
+                name: riskData.name,
+                description: riskData.description,
+                probability: riskData.probability, // 1-5
+                impact: riskData.impact, // 1-5
+                severity: riskData.probability * riskData.impact,
+                mitigation: riskData.mitigation || '',
+                status: 'active', // 'active', 'mitigated', 'occurred'
+                createdAt: new Date().toISOString()
+            };
+            
+            project.risks.push(risk);
+            this.saveProjects();
+            
+            // تنبيه للمخاطر العالية
+            if (risk.severity >= 15) {
+                AlertSystem.warning(
+                    `مخاطر عالية في المشروع ${project.name}: ${risk.name}`,
+                    'high'
+                );
+            }
+            
+            return risk.id;
+        }
+    }
+    
+    static getProjectFinancials(projectId) {
+        const project = this.projects.find(p => p.id === projectId);
+        if (!project) return null;
+        
+        const financials = {
+            totalInvestment: project.budget.total,
+            totalSpent: project.budget.spent,
+            totalRevenue: 0,
+            totalProfit: 0,
+            roi: 0,
+            cashFlow: []
+        };
+        
+        // حساب الإيرادات من الوحدات المباعة
+        project.units.forEach(unit => {
+            if (unit.status === 'sold') {
+                financials.totalRevenue += unit.price;
+            }
+        });
+        
+        financials.totalProfit = financials.totalRevenue - financials.totalSpent;
+        financials.roi = financials.totalSpent > 0 ? 
+            (financials.totalProfit / financials.totalSpent) * 100 : 0;
+        
+        return financials;
+    }
+    
+    static getProjectTimeline(projectId) {
+        const project = this.projects.find(p => p.id === projectId);
+        if (!project) return null;
+        
+        const timeline = {
+            startDate: project.startDate,
+            expectedCompletion: project.expectedCompletion,
+            actualCompletion: project.actualCompletion,
+            milestones: project.milestones.map(m => ({
+                name: m.name,
+                dueDate: m.dueDate,
+                completedDate: m.completedDate,
+                status: m.status,
+                progress: m.progress
+            })),
+            delays: [],
+            progress: 0
+        };
+        
+        // حساب التقدم العام
+        if (timeline.milestones.length > 0) {
+            timeline.progress = timeline.milestones.reduce((sum, m) => sum + m.progress, 0) / timeline.milestones.length;
+        }
+        
+        // تحديد التأخيرات
+        const today = new Date();
+        timeline.milestones.forEach(milestone => {
+            if (milestone.status === 'pending' && new Date(milestone.dueDate) < today) {
+                timeline.delays.push({
+                    milestone: milestone.name,
+                    daysDelayed: Math.ceil((today - new Date(milestone.dueDate)) / (1000 * 60 * 60 * 24))
+                });
+            }
+        });
+        
+        return timeline;
+    }
+    
+    static saveProjects() {
+        localStorage.setItem('projects', JSON.stringify(this.projects));
+    }
+    
+    static loadProjects() {
+        const saved = localStorage.getItem('projects');
+        if (saved) {
+            this.projects = JSON.parse(saved);
+        }
+    }
+    
+    static getAllProjects() {
+        return this.projects;
+    }
+    
+    static getProjectsByStatus(status) {
+        return this.projects.filter(p => p.status === status);
+    }
+    
+    static getProjectsByType(type) {
+        return this.projects.filter(p => p.type === type);
+    }
+}
+
+// تحميل المشاريع عند بدء التطبيق
+ProjectManager.loadProjects();
