@@ -143,7 +143,8 @@ function loadFromLocalStorage(){
     if(s.brokers.length===0&&(s.contracts.some(c=>c.brokerName)||s.brokerDues.some(d=>d.brokerName))){console.log('Populating brokers list from existing data...');const brokerNames=new Set([...s.contracts.map(c=>c.brokerName),...s.brokerDues.map(d=>d.brokerName)].filter(Boolean));brokerNames.forEach(name=>{s.brokers.push({id:uid('B'),name:name,phone:'',notes:''});});}
     const defaultState = {customers:[],units:[],partners:[],unitPartners:[],contracts:[],installments:[],payments:[],partnerDebts:[],safes:[],transfers:[],auditLog:[],vouchers:[],brokerDues:[],brokers:[],partnerGroups:[],settings:{theme:'dark',font:16},locked:false};
     return {...defaultState, ...s};
-  }catch{
+  }catch(error){
+    console.error('Error loading state from localStorage:', error);
     return null;
   }
 }
@@ -3509,7 +3510,10 @@ function renderBackup(){
         await persist();
         alert('تمت الاستعادة بنجاح');
         location.reload();
-      }catch(err){ alert('ملف غير صالح'); }
+      }catch(err){ 
+        console.error('Error restoring backup:', err);
+        alert('ملف غير صالح'); 
+      }
     };
     r.readAsText(f);
   };
