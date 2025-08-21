@@ -78,32 +78,53 @@ async function persist() {
     try {
         const db = await openDB();
         const transaction = db.transaction(OBJECT_STORES.filter(s => s !== 'keyval'), 'readwrite');
-        const promises = [];
+        
         for (const storeName of OBJECT_STORES) {
             if (storeName === 'keyval') continue;
 
             const store = transaction.objectStore(storeName);
-            // This is a simple but potentially slow strategy: clear and write all.
-            // A more advanced strategy would diff the state.
-            await (new Promise(res => store.clear().onsuccess = res));
+            // Clear existing data
+            await new Promise((resolve, reject) => {
+                const clearRequest = store.clear();
+                clearRequest.onsuccess = () => resolve();
+                clearRequest.onerror = () => reject(clearRequest.error);
+            });
 
             const dataToStore = state[storeName];
             if (storeName === 'settings') {
                 if (dataToStore) {
-                    await (new Promise(res => store.put({key: 'appSettings', ...dataToStore}).onsuccess = res));
+                    await new Promise((resolve, reject) => {
+                        const putRequest = store.put({key: 'appSettings', ...dataToStore});
+                        putRequest.onsuccess = () => resolve();
+                        putRequest.onerror = () => reject(putRequest.error);
+                    });
                 }
             } else if (dataToStore && Array.isArray(dataToStore)) {
                 for(const item of dataToStore) {
                     if(typeof item === 'object' && item !== null && item.id) {
-                       await (new Promise(res => store.put(item).onsuccess = res));
+                       await new Promise((resolve, reject) => {
+                           const putRequest = store.put(item);
+                           putRequest.onsuccess = () => resolve();
+                           putRequest.onerror = () => reject(putRequest.error);
+                       });
                     }
                 }
             }
         }
         await transaction.done;
         applySettings();
+        
+        // Log successful persistence
+        console.log('Data persisted successfully to IndexedDB');
     } catch (error) { 
         ErrorHandler.handle(error, 'IndexedDB Persistence');
+        // Fallback to localStorage if IndexedDB fails
+        try {
+            localStorage.setItem('estate_pro_final_v3', JSON.stringify(state));
+            console.log('Data saved to localStorage as fallback');
+        } catch (localError) {
+            console.error('Failed to save to localStorage:', localError);
+        }
     }
 }
 
@@ -159,6 +180,34 @@ async function undo() { if (historyIndex > 0) { historyIndex--; const restoredSt
 async function redo() { if (historyIndex < historyStack.length - 1) { historyIndex++; const restoredState = JSON.parse(JSON.stringify(historyStack[historyIndex])); Object.keys(state).forEach(key => delete state[key]); Object.assign(state, restoredState); await persist(); nav(currentView, currentParam); updateUndoRedoButtons(); } }
 function saveState() { historyStack = historyStack.slice(0, historyIndex + 1); historyStack.push(JSON.parse(JSON.stringify(state))); if (historyStack.length > 50) { historyStack.shift(); } historyIndex = historyStack.length - 1; updateUndoRedoButtons(); }
 function updateUndoRedoButtons() { const undoBtn = document.getElementById('undoBtn'); const redoBtn = document.getElementById('redoBtn'); if (undoBtn) undoBtn.disabled = historyIndex <= 0; if (redoBtn) redoBtn.disabled = historyIndex >= historyStack.length - 1; }
+
+// دالة فحص حالة البيانات
+function checkDataStatus() {
+    console.log('=== حالة البيانات ===');
+    console.log('الشركاء:', state.partners.length);
+    console.log('السماسرة:', state.brokers.length);
+    console.log('الخزن:', state.safes.length);
+    console.log('الوحدات:', state.units.length);
+    console.log('العقود:', state.contracts.length);
+    console.log('السندات:', state.vouchers.length);
+    console.log('الأقساط:', state.installments.length);
+    console.log('==================');
+}
+
+// دالة إعادة تحميل البيانات
+async function reloadData() {
+    try {
+        console.log('إعادة تحميل البيانات...');
+        const newState = await loadStateFromDB();
+        Object.keys(state).forEach(key => delete state[key]);
+        Object.assign(state, newState);
+        console.log('تم إعادة تحميل البيانات بنجاح');
+        checkDataStatus();
+        nav(currentView, currentParam);
+    } catch (error) {
+        ErrorHandler.handle(error, 'Data Reload');
+    }
+}
 
 function setupGlobalEventListeners() {
     document.getElementById('themeSel').value = state.settings.theme || 'dark';
@@ -430,8 +479,8 @@ function generatePartnerLedger(partnerId) {
 
 function calculateKpis(filter = {}) {
   const { from, to } = filter;
-  let contracts = state.contracts;
-  let vouchers = state.vouchers;
+  let contracts = state.contracts || [];
+  let vouchers = state.vouchers || [];
 
   if (from) {
     contracts = contracts.filter(c => c.start >= from);
@@ -443,24 +492,24 @@ function calculateKpis(filter = {}) {
   }
 
   const totalSales = contracts.reduce((sum, c) => sum + Number(c.totalPrice || 0), 0);
-  const totalReceipts = vouchers.filter(v => v.type === 'receipt').reduce((sum, v) => sum + v.amount, 0);
+  const totalReceipts = vouchers.filter(v => v.type === 'receipt').reduce((sum, v) => sum + Number(v.amount || 0), 0);
 
-  const totalDebt = state.units.reduce((sum, u) => sum + calcRemaining(u), 0);
+  const totalDebt = (state.units || []).reduce((sum, u) => sum + calcRemaining(u), 0);
 
   const collectionPercentage = totalSales > 0 ? (totalReceipts / totalSales) * 100 : 0;
 
-  const totalExpenses = vouchers.filter(v => v.type === 'payment').reduce((sum, v) => sum + v.amount, 0);
+  const totalExpenses = vouchers.filter(v => v.type === 'payment').reduce((sum, v) => sum + Number(v.amount || 0), 0);
 
   const netProfit = totalReceipts - totalExpenses;
 
   const unitCounts = {
-    total: state.units.length,
-    available: state.units.filter(u=>u.status==='متاحة').length,
-    sold: state.units.filter(u=>u.status==='مباعة').length,
-    reserved: state.units.filter(u=>u.status==='محجوزة').length,
+    total: (state.units || []).length,
+    available: (state.units || []).filter(u=>u.status==='متاحة').length,
+    sold: (state.units || []).filter(u=>u.status==='مباعة').length,
+    reserved: (state.units || []).filter(u=>u.status==='محجوزة').length,
   };
 
-  const investorCount = state.partners.length;
+  const investorCount = (state.partners || []).length;
 
   return {
     totalSales, totalReceipts, totalDebt, collectionPercentage,
@@ -601,7 +650,7 @@ function renderDash() {
 
   // Render Upcoming Installments Table
   try {
-    let upcomingInstallments = state.installments
+    let upcomingInstallments = (state.installments || [])
       .filter(i => i.status !== 'مدفوع')
       .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
 
@@ -612,7 +661,7 @@ function renderDash() {
 
     const headers = ['الوحدة', 'العميل', 'المبلغ', 'تاريخ الاستحقاق'];
     const rows = upcomingInstallments.map(i => {
-      const contract = state.contracts.find(c => c.unitId === i.unitId);
+      const contract = (state.contracts || []).find(c => c.unitId === i.unitId);
       const customer = contract ? custById(contract.customerId) : null;
       return [
         getUnitDisplayName(unitById(i.unitId)),
@@ -631,7 +680,7 @@ function renderDash() {
   // Render Recent Transactions Table
   try {
     let transactions = [];
-    state.vouchers.forEach(v => {
+    (state.vouchers || []).forEach(v => {
         if ((!fromDate || v.date >= fromDate) && (!toDate || v.date <= toDate)) {
             transactions.push({
                 date: v.date,
@@ -1267,10 +1316,10 @@ function renderSafes(){
   window.addSafe = () => {
       const name = document.getElementById('s-name').value.trim();
       const balance = parseNumber(document.getElementById('s-balance').value);
-      if (!name) return alert('الرجاء إدخال اسم الخزنة.');
+      if (!name) return NotificationSystem.show('الرجاء إدخال اسم الخزنة.', 'warning');
 
       if (state.safes.some(s => s.name.toLowerCase() === name.toLowerCase())) {
-          return alert('خزنة بنفس الاسم موجودة بالفعل.');
+          return NotificationSystem.show('خزنة بنفس الاسم موجودة بالفعل.', 'warning');
       }
 
       saveState();
@@ -1945,9 +1994,9 @@ function renderBrokers() {
         const phone = document.getElementById('b-phone').value.trim();
         const notes = document.getElementById('b-notes').value.trim();
 
-        if (!name) return alert('الرجاء إدخال اسم السمسار.');
+        if (!name) return NotificationSystem.show('الرجاء إدخال اسم السمسار.', 'warning');
         if (state.brokers.some(b => b.name.toLowerCase() === name.toLowerCase())) {
-            return alert('هذا السمسار موجود بالفعل.');
+            return NotificationSystem.show('هذا السمسار موجود بالفعل.', 'warning');
         }
         saveState();
         const newBroker = { id: uid('B'), name, phone, notes };
@@ -2633,7 +2682,7 @@ function renderPartners(){
     const name=document.getElementById('pr-name').value.trim(); if(!name) return;
     const phone = document.getElementById('pr-phone').value;
     if (state.partners.some(p => p.name.toLowerCase() === name.toLowerCase())) {
-        return alert('شريك بنفس الاسم موجود بالفعل. الرجاء استخدام اسم مختلف.');
+        return NotificationSystem.show('شريك بنفس الاسم موجود بالفعل. الرجاء استخدام اسم مختلف.', 'warning');
     }
     saveState();
     const newPartner = {id:uid('PR'),name,phone};
