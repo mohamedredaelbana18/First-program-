@@ -2001,20 +2001,43 @@ function renderBrokers() {
     }
 
     function drawDuesTab() {
-        const dueList = state.brokerDues.filter(d => d.status === 'due').sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
-        const rows = dueList.map(d => {
-            const contract = state.contracts.find(c => c.id === d.contractId);
+        // عرض عمولات السماسرة من النظام الجديد
+        const commissionList = (state.brokerCommissions || []).filter(c => c.status === 'pending').sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
+        
+        const rows = commissionList.map(c => {
+            const safe = state.safes.find(s => s.id === c.safeId);
             return [
-                d.brokerName,
-                contract ? unitCode(contract.unitId) : '—',
-                d.dueDate,
-                egp(d.amount),
-                `<button class="btn ok" onclick="payBrokerDue('${d.id}')">دفع الآن</button>`
+                c.brokerName,
+                c.contractCode || '—',
+                c.customerName || '—',
+                c.dueDate,
+                egp(c.amount),
+                safe ? safe.name : 'غير محدد',
+                `<button class="btn ok" onclick="payBrokerCommission('${c.id}')">دفع الآن</button>`
             ];
         });
+
+        // حساب إجماليات
+        const totalPending = commissionList.reduce((sum, c) => sum + c.amount, 0);
+        const totalPaid = (state.brokerCommissions || []).filter(c => c.status === 'paid').reduce((sum, c) => sum + c.amount, 0);
+
         document.getElementById('brokers-content').innerHTML = `
+            <div class="broker-commissions-summary">
+                <div class="summary-cards">
+                    <div class="summary-card">
+                        <h4>العمولات المستحقة</h4>
+                        <div class="amount">${egp(totalPending)}</div>
+                        <div class="count">${commissionList.length} عمولة</div>
+                    </div>
+                    <div class="summary-card">
+                        <h4>العمولات المدفوعة</h4>
+                        <div class="amount">${egp(totalPaid)}</div>
+                        <div class="count">${(state.brokerCommissions || []).filter(c => c.status === 'paid').length} عمولة</div>
+                    </div>
+                </div>
+            </div>
             <h3>العمولات المستحقة للدفع</h3>
-            ${table(['السمسار', 'الوحدة', 'تاريخ الاستحقاق', 'المبلغ', ''], rows)}
+            ${table(['السمسار', 'كود العقد', 'العميل', 'تاريخ الاستحقاق', 'المبلغ', 'الخزنة', ''], rows)}
         `;
     }
 
@@ -3033,6 +3056,12 @@ const REPORT_DEFINITIONS = {
       title: 'حالة الوحدات',
       description: 'ملخص لعدد الوحدات المتاحة، المباعة، والمحجوزة.',
       icon: '🏠'
+    },
+    {
+      id: 'broker_commissions',
+      title: 'عمولات السماسرة',
+      description: 'تقرير مفصل لعمولات السماسرة المستحقة والمدفوعة.',
+      icon: '💰'
     }
   ]
 };
@@ -3289,6 +3318,10 @@ function renderReportFilterScreen(reportId) {
       reportData = generatePartnerIncomeExpensesReport();
       reportTitle = 'تقرير الإيرادات والمصروفات للشركاء';
       break;
+    case 'broker_commissions':
+      reportData = generateBrokerCommissionsReport();
+      reportTitle = 'تقرير عمولات السماسرة';
+      break;
     default:
       notifications.error('نوع التقرير غير معروف');
       return;
@@ -3463,6 +3496,53 @@ function generatePartnerIncomeExpensesReport() {
     type: 'table',
     headers: ['الشريك', 'إجمالي الإيرادات', 'إجمالي المصروفات', 'صافي الربح', 'عدد العقود'],
     data: partnerFinancials.map(p => [p.partner, p.totalIncome, p.totalExpenses, p.netIncome, p.contracts])
+  };
+}
+
+function generateBrokerCommissionsReport() {
+  if (!state.brokerCommissions) {
+    return {
+      type: 'summary',
+      data: {
+        message: 'لا توجد عمولات مسجلة'
+      }
+    };
+  }
+
+  const brokerStats = {};
+  
+  state.brokerCommissions.forEach(commission => {
+    if (!brokerStats[commission.brokerName]) {
+      brokerStats[commission.brokerName] = {
+        totalPending: 0,
+        totalPaid: 0,
+        pendingCount: 0,
+        paidCount: 0
+      };
+    }
+    
+    if (commission.status === 'pending') {
+      brokerStats[commission.brokerName].totalPending += commission.amount;
+      brokerStats[commission.brokerName].pendingCount++;
+    } else if (commission.status === 'paid') {
+      brokerStats[commission.brokerName].totalPaid += commission.amount;
+      brokerStats[commission.brokerName].paidCount++;
+    }
+  });
+
+  const rows = Object.entries(brokerStats).map(([brokerName, stats]) => [
+    brokerName,
+    egp(stats.totalPending),
+    stats.pendingCount,
+    egp(stats.totalPaid),
+    stats.paidCount,
+    egp(stats.totalPending + stats.totalPaid)
+  ]);
+
+  return {
+    type: 'table',
+    headers: ['السمسار', 'العمولات المستحقة', 'عدد المستحقة', 'العمولات المدفوعة', 'عدد المدفوعة', 'إجمالي العمولات'],
+    data: rows
   };
 }
 
@@ -4265,6 +4345,84 @@ window.printContractDetails = function(contractId) {
     printHTML(`عقد ${contract.code || 'غير محدد'}`, content);
 };
 
+// نظام تتبع عمولات السماسرة
+window.trackBrokerCommission = function(contractId, brokerName, amount) {
+    if (!brokerName || amount <= 0) return;
+
+    const broker = state.brokers.find(b => b.name === brokerName);
+    if (!broker) return;
+
+    const contract = state.contracts.find(c => c.id === contractId);
+    if (!contract) return;
+
+    // إضافة سجل عمولة السمسار
+    const commissionRecord = {
+        id: uid('BC'),
+        brokerId: broker.id,
+        brokerName: brokerName,
+        contractId: contractId,
+        contractCode: contract.code,
+        amount: amount,
+        status: 'pending', // pending, paid
+        dueDate: contract.start,
+        paymentDate: null,
+        safeId: contract.commissionSafeId,
+        description: `عمولة عقد ${contract.code}`,
+        unitId: contract.unitId,
+        customerName: (state.customers.find(c => c.id === contract.customerId) || {}).name || 'غير محدد'
+    };
+
+    if (!state.brokerCommissions) state.brokerCommissions = [];
+    state.brokerCommissions.push(commissionRecord);
+};
+
+// دفع عمولة السمسار
+window.payBrokerCommission = function(commissionId) {
+    const commission = state.brokerCommissions.find(bc => bc.id === commissionId);
+    if (!commission) return notifications.error('لم يتم العثور على العمولة.');
+
+    if (commission.status === 'paid') {
+        return notifications.error('هذه العمولة مدفوعة بالفعل.');
+    }
+
+    const safe = state.safes.find(s => s.id === commission.safeId);
+    if (!safe) return notifications.error('لم يتم العثور على الخزنة المحددة.');
+
+    if (safe.balance < commission.amount) {
+        return notifications.error(`رصيد الخزنة "${safe.name}" غير كافٍ. الرصيد الحالي: ${egp(safe.balance)}`);
+    }
+
+    saveState();
+
+    // تحديث حالة العمولة
+    commission.status = 'paid';
+    commission.paymentDate = today();
+
+    // خصم من الخزنة
+    safe.balance -= commission.amount;
+
+    // إنشاء سند دفع
+    const paymentVoucher = {
+        id: uid('V'),
+        type: 'payment',
+        date: today(),
+        amount: commission.amount,
+        safeId: commission.safeId,
+        description: `دفع عمولة سمسار - ${commission.brokerName} - عقد ${commission.contractCode}`,
+        beneficiary: commission.brokerName,
+        linked_ref: commission.contractId
+    };
+    state.vouchers.push(paymentVoucher);
+
+    persist();
+    notifications.success(`تم دفع عمولة ${commission.brokerName} بنجاح`);
+    
+    // إعادة عرض صفحة السماسرة إذا كانت مفتوحة
+    if (currentView === 'brokers') {
+        nav('brokers');
+    }
+};
+
 // نظام تتبع الإيرادات والمصروفات للشركاء
 window.trackPartnerIncome = function(contractId, amount, type = 'income') {
     const contract = state.contracts.find(c => c.id === contractId);
@@ -4396,8 +4554,13 @@ window.createContract = function() {
         trackPartnerIncome(contract.id, totalIncome, 'income');
     }
 
+    // تتبع عمولة السمسار
+    if (brokerAmt > 0) {
+        trackBrokerCommission(contract.id, brokerName, brokerAmt);
+    }
+
     // تتبع المصروفات للشركاء
-    const totalExpenses = brokerAmt + additionalExpenses;
+    const totalExpenses = additionalExpenses;
     if (totalExpenses > 0) {
         trackPartnerIncome(contract.id, totalExpenses, 'expense');
     }
@@ -4460,19 +4623,7 @@ window.createContract = function() {
         state.vouchers.push(receiptVoucher);
     }
 
-    if (brokerAmt > 0) {
-        const paymentVoucher = {
-            id: uid('V'),
-            type: 'payment',
-            date: contract.start,
-            amount: brokerAmt,
-            safeId: commissionSafeId,
-            description: `عمولة سمسار عقد ${contract.code}`,
-            beneficiary: brokerName,
-            linked_ref: contract.id
-        };
-        state.vouchers.push(paymentVoucher);
-    }
+    // لا يتم إنشاء سند دفع للعمولة تلقائياً - سيتم الدفع لاحقاً
 
     // تحديث حالة الوحدة
     const unit = state.units.find(u => u.id === unitId);
