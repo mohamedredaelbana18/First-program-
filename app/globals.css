@@ -219,6 +219,103 @@ body {
   padding: 16px;
 }
 
+/* Contract Details Styles */
+.contract-details {
+  padding: 16px;
+}
+
+.detail-section {
+  margin-bottom: 24px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.detail-section h4 {
+  margin: 0 0 16px 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary, #374151);
+  border-bottom: 2px solid var(--primary-color, #3b82f6);
+  padding-bottom: 8px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+
+.detail-item:last-child {
+  border-bottom: none;
+}
+
+.detail-item .label {
+  font-weight: 500;
+  color: var(--text-secondary, #6b7280);
+}
+
+.detail-item .value {
+  font-weight: 600;
+  color: var(--text-primary, #374151);
+}
+
+.detail-item .value.income {
+  color: #10b981;
+}
+
+.detail-item .value.expense {
+  color: #ef4444;
+}
+
+/* Actions in headers */
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Partner Income Tracking */
+.partner-income-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+}
+
+.partner-income-table th,
+.partner-income-table td {
+  padding: 12px;
+  text-align: right;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+
+.partner-income-table th {
+  background: var(--table-header-bg, #f9fafb);
+  font-weight: 600;
+  color: var(--text-primary, #374151);
+}
+
+.partner-income-table tr:hover {
+  background: var(--hover-bg, #f9fafb);
+}
+
+.income-row {
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.expense-row {
+  background: rgba(239, 68, 68, 0.1);
+}
+
 .data-table {
   width: 100%;
   border-collapse: collapse;

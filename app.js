@@ -1711,8 +1711,10 @@ function renderContracts(){
         <div class="grid grid-2" style="margin-top:10px; gap: 8px;">
             <select class="select" id="ct-type"><option>شهري</option><option>ربع سنوي</option><option>نصف سنوي</option><option>سنوي</option></select>
             <input class="input" id="ct-count" placeholder="عدد الدفعات" oninput="this.value=this.value.replace(/[^\\d]/g,'')">
-            <input class="input" id="ct-annual-bonus" placeholder="عدد الدفعات السنوية (0-3)" oninput="this.value=this.value.replace(/[^\\d]/g,'')">
-            <input class="input" id="ct-annual-bonus-value" placeholder="قيمة الدفعة السنوية" oninput="this.value=this.value.replace(/[^\\d.]/g,'')">
+                    <input class="input" id="ct-annual-bonus" placeholder="عدد الدفعات السنوية (0-3)" oninput="this.value=this.value.replace(/[^\\d]/g,'')">
+        <input class="input" id="ct-annual-bonus-value" placeholder="قيمة الدفعة السنوية" oninput="this.value=this.value.replace(/[^\\d.]/g,'')">
+        <input class="input" id="ct-income" placeholder="الإيرادات الإضافية" oninput="this.value=this.value.replace(/[^\\d.]/g,'')">
+        <input class="input" id="ct-expenses" placeholder="المصروفات الإضافية" oninput="this.value=this.value.replace(/[^\\d.]/g,'')">
         </div>
         <div style="color:var(--muted); font-size:12px; margin-top:4px; padding-right: 5px;">
             إجمالي عدد الأقساط: <span id="ct-total-installments" style="font-weight:bold;">0</span>
@@ -2999,6 +3001,12 @@ const REPORT_DEFINITIONS = {
       title: 'ملخص تدفقات الشركاء',
       description: 'عرض شهري لحصة الأرباح الخاصة بشريك معين.',
       icon: '📈'
+    },
+    {
+      id: 'partner_income_expenses',
+      title: 'الإيرادات والمصروفات للشركاء',
+      description: 'تقرير مفصل لإيرادات ومصروفات كل شريك من العقود.',
+      icon: '💰'
     }
   ],
   'المتابعة': [
@@ -3277,6 +3285,10 @@ function renderReportFilterScreen(reportId) {
       reportData = generateCustomerActivityReport();
       reportTitle = 'تقرير نشاط العملاء';
       break;
+    case 'partner_income_expenses':
+      reportData = generatePartnerIncomeExpensesReport();
+      reportTitle = 'تقرير الإيرادات والمصروفات للشركاء';
+      break;
     default:
       notifications.error('نوع التقرير غير معروف');
       return;
@@ -3431,6 +3443,26 @@ function generateCustomerActivityReport() {
     type: 'table',
     headers: ['العميل', 'عدد الوحدات', 'إجمالي المدفوعات'],
     data: customerActivity.map(c => [c.customer, c.units, c.payments])
+  };
+}
+
+function generatePartnerIncomeExpensesReport() {
+  const partnerFinancials = state.partners.map(partner => {
+    const financials = calculatePartnerFinancials(partner.id);
+    
+    return {
+      partner: partner.name,
+      totalIncome: egp(financials.totalIncome),
+      totalExpenses: egp(financials.totalExpenses),
+      netIncome: egp(financials.netIncome),
+      contracts: state.partnerIncome ? state.partnerIncome.filter(pi => pi.partnerId === partner.id).length : 0
+    };
+  });
+
+  return {
+    type: 'table',
+    headers: ['الشريك', 'إجمالي الإيرادات', 'إجمالي المصروفات', 'صافي الربح', 'عدد العقود'],
+    data: partnerFinancials.map(p => [p.partner, p.totalIncome, p.totalExpenses, p.netIncome, p.contracts])
   };
 }
 
@@ -4060,7 +4092,7 @@ window.payBrokerDue = function(dueId) {
 window.openContractDetails = function(id) {
     const ct = state.contracts.find(c => c.id === id);
     if (!ct) {
-        alert('لم يتم العثور على العقد');
+        notifications.error('لم يتم العثور على العقد');
         return nav('contracts');
     }
 
@@ -4110,7 +4142,10 @@ window.openContractDetails = function(id) {
         <div class="card">
             <div class="header">
                 <h1>تفاصيل العقد — ${ct.code}</h1>
-                <button class="btn secondary" onclick="nav('contracts')">⬅️ العودة إلى العقود</button>
+                <div class="actions">
+                    <button class="btn" onclick="printContractDetails('${ct.id}')">طباعة العقد</button>
+                    <button class="btn secondary" onclick="nav('contracts')">⬅️ العودة إلى العقود</button>
+                </div>
             </div>
             <div class="grid grid-2" style="margin-top:12px; align-items: flex-start;">
                 <div class="card">
@@ -4157,4 +4192,296 @@ window.openContractDetails = function(id) {
     `;
 
     view.innerHTML = html;
+};
+
+// وظيفة طباعة تفاصيل العقد
+window.printContractDetails = function(contractId) {
+    const contract = state.contracts.find(c => c.id === contractId);
+    if (!contract) return notifications.error('لم يتم العثور على العقد.');
+
+    const customer = state.customers.find(c => c.id === contract.customerId);
+    const unit = state.units.find(u => u.id === contract.unitId);
+    
+    // حساب الإيرادات والمصروفات
+    const totalIncome = contract.downPayment + (contract.installmentAmount * contract.installmentCount) + (contract.additionalIncome || 0);
+    const totalExpenses = (contract.brokerAmount || 0) + (contract.additionalExpenses || 0);
+    const netIncome = totalIncome - totalExpenses;
+
+    const content = `
+        <div style="text-align: center; margin-bottom: 20px;">
+            <h1>عقد بيع الوحدة العقارية</h1>
+            <p>رقم العقد: ${contract.code || 'غير محدد'}</p>
+            <p>تاريخ العقد: ${contract.start}</p>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+            <tr>
+                <td style="border: 1px solid #ccc; padding: 10px; font-weight: bold;">معلومات العميل</td>
+                <td style="border: 1px solid #ccc; padding: 10px;">
+                    الاسم: ${customer ? customer.name : 'غير محدد'}<br>
+                    الهاتف: ${customer ? customer.phone : 'غير محدد'}
+                </td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ccc; padding: 10px; font-weight: bold;">معلومات الوحدة</td>
+                <td style="border: 1px solid #ccc; padding: 10px;">
+                    الاسم: ${unit ? unit.name : 'غير محدد'}<br>
+                    الكود: ${unit ? unit.code : 'غير محدد'}<br>
+                    السعر: ${egp(contract.totalPrice)}
+                </td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ccc; padding: 10px; font-weight: bold;">تفاصيل الدفع</td>
+                <td style="border: 1px solid #ccc; padding: 10px;">
+                    المقدم: ${egp(contract.downPayment)}<br>
+                    قيمة القسط: ${egp(contract.installmentAmount)}<br>
+                    عدد الأقساط: ${contract.installmentCount}<br>
+                    عدد الدفعات السنوية: ${contract.annualInstallments || 0}<br>
+                    قيمة الدفعة السنوية: ${egp(contract.annualInstallmentValue || 0)}
+                </td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ccc; padding: 10px; font-weight: bold;">معلومات السمسار</td>
+                <td style="border: 1px solid #ccc; padding: 10px;">
+                    الاسم: ${contract.brokerName || 'غير محدد'}<br>
+                    العمولة: ${egp(contract.brokerAmount || 0)}
+                </td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ccc; padding: 10px; font-weight: bold;">الإيرادات والمصروفات</td>
+                <td style="border: 1px solid #ccc; padding: 10px;">
+                    إجمالي الإيرادات: ${egp(totalIncome)}<br>
+                    إجمالي المصروفات: ${egp(totalExpenses)}<br>
+                    صافي الربح: ${egp(netIncome)}
+                </td>
+            </tr>
+        </table>
+
+        <div style="margin-top: 20px; text-align: center;">
+            <p>تم طباعة هذا العقد في: ${new Date().toLocaleString('ar-EG')}</p>
+        </div>
+    `;
+
+    printHTML(`عقد ${contract.code || 'غير محدد'}`, content);
+};
+
+// نظام تتبع الإيرادات والمصروفات للشركاء
+window.trackPartnerIncome = function(contractId, amount, type = 'income') {
+    const contract = state.contracts.find(c => c.id === contractId);
+    if (!contract) return;
+
+    const unitPartners = state.unitPartners.filter(up => up.unitId === contract.unitId);
+    
+    unitPartners.forEach(up => {
+        const partner = state.partners.find(p => p.id === up.partnerId);
+        if (!partner) return;
+
+        const partnerShare = (amount * up.percent) / 100;
+        
+        // إضافة سجل الإيرادات/المصروفات للشريك
+        const record = {
+            id: uid('PI'),
+            partnerId: up.partnerId,
+            contractId: contractId,
+            amount: partnerShare,
+            type: type, // 'income' أو 'expense'
+            date: today(),
+            description: `${type === 'income' ? 'إيراد' : 'مصروف'} من عقد ${contract.code || 'غير محدد'}`,
+            unitId: contract.unitId,
+            percentage: up.percent
+        };
+
+        if (!state.partnerIncome) state.partnerIncome = [];
+        state.partnerIncome.push(record);
+    });
+};
+
+// حساب إجمالي الإيرادات والمصروفات للشريك
+window.calculatePartnerFinancials = function(partnerId) {
+    if (!state.partnerIncome) return { totalIncome: 0, totalExpenses: 0, netIncome: 0 };
+
+    const partnerRecords = state.partnerIncome.filter(pi => pi.partnerId === partnerId);
+    
+    const totalIncome = partnerRecords
+        .filter(r => r.type === 'income')
+        .reduce((sum, r) => sum + r.amount, 0);
+    
+    const totalExpenses = partnerRecords
+        .filter(r => r.type === 'expense')
+        .reduce((sum, r) => sum + r.amount, 0);
+    
+    const netIncome = totalIncome - totalExpenses;
+    
+    return { totalIncome, totalExpenses, netIncome };
+};
+
+// تحديث وظيفة إنشاء العقد لتتبع الإيرادات
+window.createContract = function() {
+    const total = parseNumber(document.getElementById('ct-total').value);
+    const down = parseNumber(document.getElementById('ct-down').value);
+    const discount = parseNumber(document.getElementById('ct-discount').value);
+    const brokerName = document.getElementById('ct-broker-name').value.trim();
+    const brokerP = parseNumber(document.getElementById('ct-brokerp').value);
+    const brokerAmt = Math.round((total * brokerP / 100) * 100) / 100;
+    const commissionSafeId = document.getElementById('ct-commission-safe').value;
+    const downPaymentSafeId = document.getElementById('ct-downpayment-safe').value;
+    const additionalIncome = parseNumber(document.getElementById('ct-income').value) || 0;
+    const additionalExpenses = parseNumber(document.getElementById('ct-expenses').value) || 0;
+    let paymentType = document.getElementById('ct-payment-type').value;
+
+    // Automatically convert to cash deal if down payment covers the full price
+    if (paymentType === 'installment' && down >= total) {
+        paymentType = 'cash';
+    }
+
+    if (brokerAmt > 0 && !commissionSafeId) return notifications.error('الرجاء تحديد الخزنة التي سيتم دفع العمولة منها.');
+    if (down > 0 && !downPaymentSafeId) return notifications.error('الرجاء تحديد الخزنة التي سيتم إيداع المقدم بها.');
+
+    saveState();
+    const unitId = document.getElementById('ct-unit').value, customerId = document.getElementById('ct-cust').value;
+    if (!unitId || !customerId) return notifications.error('الرجاء اختيار الوحدة والعميل.');
+
+    const unitPartners = state.unitPartners.filter(up => up.unitId === unitId);
+    if (unitPartners.length === 0) return notifications.error('لا يمكن إنشاء عقد. يجب تحديد شركاء لهذه الوحدة أولاً.');
+    const totalPercent = unitPartners.reduce((sum, up) => sum + up.percent, 0);
+    if (totalPercent !== 100) return notifications.error(`لا يمكن إنشاء عقد. مجموع نسب الشركاء هو ${totalPercent}% ويجب أن يكون 100% بالضبط.`);
+
+    const count = parseInt(document.getElementById('ct-count').value) || 0;
+    const extra = parseInt(document.getElementById('ct-annual-bonus').value) || 0;
+    const annualBonusValue = parseNumber(document.getElementById('ct-annual-bonus-value').value) || 0;
+
+    if (paymentType === 'installment' && count <= 0 && extra <= 0) return notifications.error('الرجاء إدخال عدد دفعات أو عدد دفعات سنوية.');
+    if (paymentType === 'installment' && extra > 0 && annualBonusValue <= 0) return notifications.error('الرجاء إدخال قيمة الدفعة السنوية.');
+
+    const installmentAmount = paymentType === 'cash' ? 0 : Math.round(((total - discount - down) / (count + extra)) * 100) / 100;
+
+    if (paymentType === 'installment' && (down + discount) > (total - discount)) {
+        return notifications.error('خطأ: المقدم والخصم أكبر من قيمة العقد الخاضعة للتقسيط.');
+    }
+
+    if (paymentType === 'installment' && (extra * annualBonusValue) > (total - discount - down)) {
+        return notifications.error('خطأ: مجموع الدفعات السنوية أكبر من المبلغ المتبقي للتقسيط.');
+    }
+
+    const contract = {
+        id: uid('C'),
+        code: `CT-${Date.now()}`,
+        unitId,
+        customerId,
+        totalPrice: total,
+        downPayment: down,
+        discountAmount: discount,
+        installmentAmount,
+        installmentCount: count,
+        annualInstallments: extra,
+        annualInstallmentValue: annualBonusValue,
+        paymentType,
+        start: document.getElementById('ct-start').value,
+        brokerName,
+        brokerAmount: brokerAmt,
+        commissionSafeId,
+        downPaymentSafeId,
+        additionalIncome,
+        additionalExpenses,
+        type: document.getElementById('ct-type').value,
+        extraAnnual: extra,
+        maintenanceDeposit: parseNumber(document.getElementById('ct-maintenance-deposit').value) || 0
+    };
+
+    state.contracts.push(contract);
+
+    // تتبع الإيرادات للشركاء
+    const totalIncome = down + additionalIncome;
+    if (totalIncome > 0) {
+        trackPartnerIncome(contract.id, totalIncome, 'income');
+    }
+
+    // تتبع المصروفات للشركاء
+    const totalExpenses = brokerAmt + additionalExpenses;
+    if (totalExpenses > 0) {
+        trackPartnerIncome(contract.id, totalExpenses, 'expense');
+    }
+
+    // إنشاء الأقساط
+    if (paymentType === 'installment') {
+        const startDate = new Date(contract.start);
+        
+        // الأقساط العادية
+        for (let i = 0; i < count; i++) {
+            const dueDate = new Date(startDate);
+            dueDate.setMonth(dueDate.getMonth() + i + 1);
+            
+            const installment = {
+                id: uid('I'),
+                contractId: contract.id,
+                unitId: contract.unitId,
+                customerId: contract.customerId,
+                amount: installmentAmount,
+                originalAmount: installmentAmount,
+                dueDate: dueDate.toISOString().slice(0, 10),
+                status: 'غير مدفوع',
+                type: 'قسط عادي'
+            };
+            state.installments.push(installment);
+        }
+
+        // الدفعات السنوية
+        for (let i = 0; i < extra; i++) {
+            const dueDate = new Date(startDate);
+            dueDate.setFullYear(dueDate.getFullYear() + i + 1);
+            
+            const installment = {
+                id: uid('I'),
+                contractId: contract.id,
+                unitId: contract.unitId,
+                customerId: contract.customerId,
+                amount: annualBonusValue,
+                originalAmount: annualBonusValue,
+                dueDate: dueDate.toISOString().slice(0, 10),
+                status: 'غير مدفوع',
+                type: 'دفعة سنوية'
+            };
+            state.installments.push(installment);
+        }
+    }
+
+    // إنشاء سندات القبض والدفع
+    if (down > 0) {
+        const receiptVoucher = {
+            id: uid('V'),
+            type: 'receipt',
+            date: contract.start,
+            amount: down,
+            safeId: downPaymentSafeId,
+            description: `مقدم عقد ${contract.code}`,
+            payer: (state.customers.find(c => c.id === customerId) || {}).name || 'غير محدد',
+            linked_ref: contract.id
+        };
+        state.vouchers.push(receiptVoucher);
+    }
+
+    if (brokerAmt > 0) {
+        const paymentVoucher = {
+            id: uid('V'),
+            type: 'payment',
+            date: contract.start,
+            amount: brokerAmt,
+            safeId: commissionSafeId,
+            description: `عمولة سمسار عقد ${contract.code}`,
+            beneficiary: brokerName,
+            linked_ref: contract.id
+        };
+        state.vouchers.push(paymentVoucher);
+    }
+
+    // تحديث حالة الوحدة
+    const unit = state.units.find(u => u.id === unitId);
+    if (unit) {
+        unit.status = 'مباعة';
+    }
+
+    logAction('إنشاء عقد جديد', { contractId: contract.id, unitId, customerId });
+    persist();
+    nav('contracts');
+    notifications.success('تم إنشاء العقد بنجاح');
 };
